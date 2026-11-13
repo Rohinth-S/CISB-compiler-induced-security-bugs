@@ -21,5 +21,6 @@ simulator.py contains deterministic case models and the cross-validation oracle.
 5. Exported audit JSON makes the demonstration repeatable.
 
 ## Tests
-Run `python -m unittest discover -s tests -v`.
+Run `node tests/smoke.js`. The Python reference implementation and tests are also included for environments with Python installed.
+
 
