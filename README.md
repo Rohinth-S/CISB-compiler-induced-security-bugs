@@ -11,7 +11,7 @@ The dashboard supports four cases: secret-wipe elimination, null-check removal, 
 The design follows the supplied CISB research: optimization-sensitive patterns, IR/AST-oriented mitigation ideas, baseline-versus-mitigated cross-validation, audit evidence, and a future path toward a Clang/LLVM wrapper and coverage-guided testing. This repository is a portable classroom simulation, not a production compiler hardening tool.
 
 ## Architecture
-simulator.py contains deterministic case models and the cross-validation oracle. app.py exposes a dependency-free HTTP API and serves web/. tests/ verifies the logic.
+simulator.py contains deterministic case models and the cross-validation oracle. server.js exposes the dependency-free HTTP API and serves web/. tests/ verifies the logic.
 
 ## Professor explanation
 1. Source-level security code can be correct.
@@ -22,5 +22,6 @@ simulator.py contains deterministic case models and the cross-validation oracle.
 
 ## Tests
 Run `node tests/smoke.js`. The Python reference implementation and tests are also included for environments with Python installed.
+
 
 
