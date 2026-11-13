@@ -3,7 +3,7 @@
 Educational, safe simulation dashboard for demonstrating compiler-induced security bugs and mitigation strategies.
 
 ## Run
-Double-click start-demo.bat on Windows, then open http://localhost:8080. Or run `python app.py`.
+Double-click start-demo.bat on Windows, then open http://localhost:8080. Or run `node server.js`. The dashboard uses only Node.js built-ins and needs no npm install.
 
 The dashboard supports four cases: secret-wipe elimination, null-check removal, integer-promotion wraparound, and constant-time timing changes. It supports baseline/mitigation switching, run-all, and audit JSON export.
 
@@ -22,3 +22,4 @@ simulator.py contains deterministic case models and the cross-validation oracle.
 
 ## Tests
 Run `python -m unittest discover -s tests -v`.
+
