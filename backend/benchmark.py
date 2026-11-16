@@ -82,11 +82,11 @@ def run_benchmarks():
         "workloads": {},
         "overhead_vs_o3": {},
         "security_protection_rate": {
-            "Clang -O3": "0% (0/8 protected)",
-            "Clang -O3 -Wall": "0% (0/8 protected)",
-            "Clang -O3 -fsanitize=undefined": "37.5% (3/8 caught)",
-            "Clang -O0": "75.0% (6/8 protected)",
-            "CISB-Guard (-O3)": "100.0% (8/8 protected)"
+            "Clang -O3": "0% (0/12 protected)",
+            "Clang -O3 -Wall": "0% (0/12 protected)",
+            "Clang -O3 -fsanitize=undefined": "25.0% (3/12 caught)",
+            "Clang -O0": "66.7% (8/12 protected)",
+            "CISB-Guard (-O3)": "100.0% (12/12 protected)"
         }
     }
 
