@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-11-16T01:14:06Z",
+  "strategies": [
+    "Clang -O3",
+    "Clang -O3 -Wall",
+    "Clang -O3 -fsanitize=undefined",
+    "Clang -O0",
+    "CISB-Guard (-O3)"
+  ],
+  "workloads": {
+    "sha256": {
+      "Clang -O3": 28.2,
+      "Clang -O3 -Wall": 27.44,
+      "Clang -O3 -fsanitize=undefined": null,
+      "Clang -O0": 62.4,
+      "CISB-Guard (-O3)": 27.84
+    },
+    "quicksort": {
+      "Clang -O3": 18.12,
+      "Clang -O3 -Wall": 18.85,
+      "Clang -O3 -fsanitize=undefined": null,
+      "Clang -O0": 31.05,
+      "CISB-Guard (-O3)": 18.11
+    },
+    "matmul": {
+      "Clang -O3": 10.75,
+      "Clang -O3 -Wall": 11.16,
+      "Clang -O3 -fsanitize=undefined": null,
+      "Clang -O0": 38.27,
+      "CISB-Guard (-O3)": 11.12
+    }
+  },
+  "overhead_vs_o3": {
+    "Clang -O3": "+0.00%",
+    "Clang -O3 -Wall": "+1.67%",
+    "Clang -O0": "+138.10%",
+    "CISB-Guard (-O3)": "+0.68%"
+  },
+  "security_protection_rate": {
+    "Clang -O3": "0% (0/8 protected)",
+    "Clang -O3 -Wall": "0% (0/8 protected)",
+    "Clang -O3 -fsanitize=undefined": "37.5% (3/8 caught)",
+    "Clang -O0": "75.0% (6/8 protected)",
+    "CISB-Guard (-O3)": "100.0% (8/8 protected)"
+  }
+}
