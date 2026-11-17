@@ -11,3 +11,5 @@ __pycache__/
 *.dylib
 build/
 .cache/
+slide_images*/
+test_trans.pptx

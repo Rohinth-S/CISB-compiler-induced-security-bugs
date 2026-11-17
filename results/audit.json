@@ -53,3 +53,4 @@
 {"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\07_post_deref_null_check.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on d"}]}
 {"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\08_int_promotion_u8.c", "edits": [{"rule": "ISpec1:IntegerPromotion", "desc": "Added explicit narrowing cast to restore modular semantics"}]}
 {"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\benchmarks\\bench_quicksort.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on arr"}]}
+{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\01_stack_key_leak.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on secret_key"}]}
