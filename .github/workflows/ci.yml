@@ -45,7 +45,7 @@ jobs:
         cmake --build build
 
     - name: Make Wrapper Executable
-      run: chmod +x bin/cisb-guard-cc
+      run: chmod +x bin/cisb-guard-cc bin/cisb_guard_cc.py
 
     - name: Run End-to-End Verification Test Suite
       run: python3 tests/verify_all.py
