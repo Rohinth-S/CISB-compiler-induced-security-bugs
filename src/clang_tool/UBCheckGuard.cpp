@@ -24,7 +24,7 @@ static cl::opt<std::string> OutputFilename("o", cl::desc("Specify output rewritt
 
 static std::string trimParensAndSpace(StringRef S) {
   S = S.trim();
-  while (S.startswith("(") && S.endswith(")")) {
+  while (S.starts_with("(") && S.ends_with(")")) {
     S = S.drop_front(1).drop_back(1).trim();
   }
   return S.str();

@@ -150,7 +150,7 @@ PreservedAnalyses ScrubGuardPass::run(Function &F, FunctionAnalysisManager &FAM)
     AllocaInst *AI = cast<AllocaInst>(Underlying);
 
     // 1. Mark memset as volatile so LLVM DSE and MemCpyOpt will not eliminate it
-    MSI->setVolatile(true);
+    MSI->setVolatile(ConstantInt::getTrue(F.getContext()));
 
     // 2. Insert inline assembly barrier: asm volatile("" : : "r"(Dest) : "memory");
     // In LLVM 18, opaque pointer Dest has type ptr
