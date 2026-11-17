@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <fstream>
+#include <cstdlib>
 
 using namespace llvm;
 
@@ -56,22 +57,12 @@ PreservedAnalyses UndefFreezePass::run(Function &F, FunctionAnalysisManager &FAM
         logUndefAudit(F.getName(), "Undef operand in ICmpInst frozen");
         Modified = true;
       } else if (auto *BinOp = dyn_cast<BinaryOperator>(Op)) {
-        // Check 1-hop feeding binary operator for undef
-        bool Stripped = false;
-        if (auto *OBO = dyn_cast<OverflowingBinaryOperator>(BinOp)) {
-          if (OBO->hasNoSignedWrap()) {
-            BinOp->setHasNoSignedWrap(false);
-            Stripped = true;
-          }
-          if (OBO->hasNoUnsignedWrap()) {
-            BinOp->setHasNoUnsignedWrap(false);
-            Stripped = true;
-          }
-        }
-
+        // Check 1-hop feeding binary operator for undef operands
+        bool HasUndefOperand = false;
         for (unsigned j = 0; j < 2; ++j) {
           Value *SubOp = BinOp->getOperand(j);
           if (isa<UndefValue>(SubOp)) {
+            HasUndefOperand = true;
             IRBuilder<> SubBuilder(BinOp);
             Value *Frozen = SubBuilder.CreateFreeze(SubOp);
             BinOp->setOperand(j, Frozen);
@@ -80,7 +71,18 @@ PreservedAnalyses UndefFreezePass::run(Function &F, FunctionAnalysisManager &FAM
             Modified = true;
           }
         }
-        if (Stripped) Modified = true;
+
+        // Only strip nsw/nuw if an operand was actually undef
+        if (HasUndefOperand) {
+          if (auto *OBO = dyn_cast<OverflowingBinaryOperator>(BinOp)) {
+            if (OBO->hasNoSignedWrap()) {
+              BinOp->setHasNoSignedWrap(false);
+            }
+            if (OBO->hasNoUnsignedWrap()) {
+              BinOp->setHasNoUnsignedWrap(false);
+            }
+          }
+        }
       }
     }
   }

@@ -42,16 +42,24 @@ def rewrite_ast_fallback(source_text: str) -> tuple[str, list]:
         edits.append({"rule": "ISpec1:SignedOverflowGT", "desc": "Rewrote signed overflow check (a + c > a) to __builtin_add_overflow"})
 
     # 2. Post-dereference null check barrier:
-    # Look for pointer access followed by if (!p) or if (p == NULL)
+    # Only match if pointer was dereferenced within the same function prior to check
+    def find_function_start(src, pos):
+        last_brace = src.rfind('\n{', 0, pos)
+        if last_brace == -1:
+            last_brace = src.rfind('{', 0, pos)
+        return last_brace if last_brace != -1 else 0
+
     null_pat = re.compile(r'(\n\s*)(if\s*\(\s*(!\s*([a-zA-Z0-9_]+)|([a-zA-Z0-9_]+)\s*==\s*(NULL|0))\s*\))')
-    match = null_pat.search(text)
-    if match:
+    for match in list(null_pat.finditer(text)):
         ptr = match.group(4) or match.group(5)
-        if re.search(rf'(\*\s*{ptr}|{ptr}->)', text[:match.start()]):
+        fn_start = find_function_start(text, match.start())
+        fn_scope = text[fn_start:match.start()]
+        if re.search(rf'(\*\s*{ptr}\b|{ptr}\s*->)', fn_scope):
             indent = match.group(1)
             barrier = f'{indent}__asm__ __volatile__("" : "+r"({ptr}));'
             text = text[:match.start()] + barrier + text[match.start():]
             edits.append({"rule": "ISpec1:PostDerefNull", "desc": f"Inserted memory barrier before null check on {ptr}"})
+            break
 
     # 3. Narrow integer promotion check:
     # if (u8 + 1 == 0) -> if ((uint8_t)(u8 + 1) == 0)
@@ -64,7 +72,7 @@ def rewrite_ast_fallback(source_text: str) -> tuple[str, list]:
     # memset(buf, 0, len) followed by memory barrier
     wipe_pat = re.compile(r'(\n\s*)(memset\s*\(\s*([a-zA-Z0-9_]+)\s*,\s*0\s*,\s*[^;]+;\s*)')
     wipe_match = wipe_pat.search(text)
-    if wipe_match and not '__asm__' in text[wipe_match.end():wipe_match.end()+100]:
+    if wipe_match and '__asm__' not in text[wipe_match.end():wipe_match.end()+100]:
         indent = wipe_match.group(1)
         buf_name = wipe_match.group(3)
         barrier = f'\n{indent}__asm__ __volatile__("" : : "r"({buf_name}) : "memory");'
@@ -74,10 +82,21 @@ def rewrite_ast_fallback(source_text: str) -> tuple[str, list]:
     return text, edits
 
 def main():
-    args = sys.argv[1:]
-    if not args:
-        print("Usage: cisb-guard-cc [compiler flags] <source.c> -o <binary>")
+    raw_args = sys.argv[1:]
+    if not raw_args:
+        print("Usage: cisb-guard-cc [compiler flags] [--keep-rewritten <path>] <source.c> -o <binary>")
         sys.exit(1)
+
+    keep_rewritten_path = None
+    args = []
+    i = 0
+    while i < len(raw_args):
+        if raw_args[i] == "--keep-rewritten" and i + 1 < len(raw_args):
+            keep_rewritten_path = raw_args[i + 1]
+            i += 2
+        else:
+            args.append(raw_args[i])
+            i += 1
 
     c_files = [a for a in args if a.endswith('.c')]
     other_args = [a for a in args if not a.endswith('.c')]
@@ -121,6 +140,12 @@ def main():
                 processed_sources.append(tmp_out)
             else:
                 processed_sources.append(c_file)
+
+        if keep_rewritten_path:
+            try:
+                Path(keep_rewritten_path).write_text(rewritten_code, encoding='utf-8')
+            except Exception:
+                pass
 
         if applied_edits:
             audit_records.append({

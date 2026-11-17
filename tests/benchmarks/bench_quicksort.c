@@ -31,7 +31,7 @@ void quicksort(int arr[], int low, int high) {
 }
 
 int main(int argc, char **argv) {
-    int n = 200000;
+    int n = 500000;
     if (argc > 1) n = atoi(argv[1]);
 
     int *arr = (int *)malloc(n * sizeof(int));

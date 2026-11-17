@@ -59,6 +59,18 @@ void sha256_init(SHA256_CTX *ctx) {
     ctx->state[4] = 0x510e527f; ctx->state[5] = 0x9b05688c; ctx->state[6] = 0x1f83d9ab; ctx->state[7] = 0x5be0cd19;
 }
 
+__attribute__((noinline))
+void hash_block_with_scrub(SHA256_CTX *ctx, const uint8_t data[]) {
+    // Stack round key buffer: populated per block and scrubbed
+    uint8_t round_key[64];
+    memcpy(round_key, data, 64);
+    sha256_transform(ctx, round_key);
+
+    // Security Property: Scrub key buffer from stack before returning.
+    // Baseline -O3 DSE deletes this memset; CISB-Guard preserves it via volatile barrier.
+    memset(round_key, 0, sizeof(round_key));
+}
+
 int main(int argc, char **argv) {
     int iterations = 100000;
     if (argc > 1) iterations = atoi(argv[1]);
@@ -71,7 +83,7 @@ int main(int argc, char **argv) {
     clock_t start = clock();
     for (int i = 0; i < iterations; i++) {
         block[0] = (uint8_t)(i & 0xFF);
-        sha256_transform(&ctx, block);
+        hash_block_with_scrub(&ctx, block);
     }
     clock_t end = clock();
 

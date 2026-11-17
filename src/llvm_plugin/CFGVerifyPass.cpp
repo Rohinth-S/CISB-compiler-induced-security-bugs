@@ -2,13 +2,15 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/Analysis/PostDominators.h"
-#include "llvm/Analysis/DominanceFrontier.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <vector>
 #include <fstream>
 #include <set>
+#include <map>
+#include <cstdlib>
 
 using namespace llvm;
 
@@ -34,6 +36,32 @@ static bool isFailureBlock(const BasicBlock &BB) {
   return false;
 }
 
+static bool mustFail(BasicBlock *BB, const std::set<BasicBlock *> &FailBlocks, const PostDominatorTree &PDT) {
+  if (FailBlocks.count(BB)) return true;
+  for (BasicBlock *FB : FailBlocks) {
+    if (PDT.dominates(FB, BB)) return true;
+  }
+  return false;
+}
+
+static unsigned getCheckIDFromMD(MDNode *MD) {
+  if (!MD || MD->getNumOperands() == 0) return 0;
+  if (auto *CMD = dyn_cast<ConstantAsMetadata>(MD->getOperand(0))) {
+    if (auto *CI = dyn_cast<ConstantInt>(CMD->getValue())) {
+      return CI->getZExtValue();
+    }
+  }
+  return 0;
+}
+
+static MDNode *createCheckMD(LLVMContext &Ctx, unsigned CheckID, StringRef Tag) {
+  Metadata *Elts[] = {
+    ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), CheckID)),
+    MDString::get(Ctx, Tag)
+  };
+  return MDNode::get(Ctx, Elts);
+}
+
 static void logCFGAudit(StringRef FuncName, StringRef Stage, StringRef Event, unsigned Checks, unsigned Ops) {
   const char *LogPath = getenv("CISB_AUDIT_LOG");
   if (!LogPath) return;
@@ -54,6 +82,9 @@ PreservedAnalyses CFGVerifyPass::run(Function &F, FunctionAnalysisManager &FAM) 
 
   if (!IsPostOpt) {
     // PRE-OPTIMIZATION PASS
+    DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+    PostDominatorTree &PDT = FAM.getResult<PostDominatorTreeAnalysis>(F);
+
     std::set<BasicBlock *> FailBlocks;
     for (BasicBlock &BB : F) {
       if (isFailureBlock(BB)) {
@@ -65,6 +96,7 @@ PreservedAnalyses CFGVerifyPass::run(Function &F, FunctionAnalysisManager &FAM) 
 
     unsigned TaggedChecks = 0;
     unsigned TaggedOps = 0;
+    SmallVector<Metadata *, 8> ExpectedChecks;
 
     for (BasicBlock &BB : F) {
       auto *BI = dyn_cast<BranchInst>(BB.getTerminator());
@@ -73,51 +105,114 @@ PreservedAnalyses CFGVerifyPass::run(Function &F, FunctionAnalysisManager &FAM) 
       BasicBlock *BT = BI->getSuccessor(0);
       BasicBlock *BF = BI->getSuccessor(1);
 
-      bool TrueFails = FailBlocks.count(BT);
-      bool FalseFails = FailBlocks.count(BF);
+      bool TrueFails = mustFail(BT, FailBlocks, PDT);
+      bool FalseFails = mustFail(BF, FailBlocks, PDT);
 
       // XOR post-dominance check: MustFail(BT) ^ MustFail(BF)
       if (TrueFails ^ FalseFails) {
-        MDNode *SecMD = MDNode::get(Ctx, MDString::get(Ctx, "security_guard"));
-        BI->setMetadata("cisb.seccheck", SecMD);
         TaggedChecks++;
+        unsigned CheckID = TaggedChecks;
+
+        MDNode *SecMD = createCheckMD(Ctx, CheckID, "security_guard");
+        BI->setMetadata("cisb.seccheck", SecMD);
+        ExpectedChecks.push_back(ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), CheckID)));
 
         BasicBlock *SafeTarget = TrueFails ? BF : BT;
-        // Tag potentially hazardous operations (e.g. division by zero, null deref) in the safe block
-        for (Instruction &I : *SafeTarget) {
-          if (I.getOpcode() == Instruction::SDiv || I.getOpcode() == Instruction::UDiv ||
-              I.getOpcode() == Instruction::SRem || I.getOpcode() == Instruction::URem) {
-            MDNode *GuardMD = MDNode::get(Ctx, MDString::get(Ctx, "guarded_op"));
-            I.setMetadata("cisb.guarded_by", GuardMD);
-            TaggedOps++;
+        // Tag potentially hazardous operations dominated by this security check
+        for (BasicBlock &TargetBB : F) {
+          if (DT.dominates(SafeTarget, &TargetBB)) {
+            for (Instruction &I : TargetBB) {
+              if (I.getOpcode() == Instruction::SDiv || I.getOpcode() == Instruction::UDiv ||
+                  I.getOpcode() == Instruction::SRem || I.getOpcode() == Instruction::URem) {
+                MDNode *GuardMD = createCheckMD(Ctx, CheckID, "guarded_op");
+                I.setMetadata("cisb.guarded_by", GuardMD);
+                TaggedOps++;
+              }
+            }
           }
         }
       }
     }
 
     if (TaggedChecks > 0) {
+      F.setMetadata("cisb.expected_checks", MDNode::get(Ctx, ExpectedChecks));
       errs() << "[CISB-Guard:CFGVerify] Pre-Opt tagged " << TaggedChecks 
              << " security check(s) and " << TaggedOps << " guarded op(s) in " << F.getName() << "\n";
       logCFGAudit(F.getName(), "Pre-Opt", "Tagged security check branches", TaggedChecks, TaggedOps);
     }
     return PreservedAnalyses::all();
   } else {
-    // POST-OPTIMIZATION PASS: Verify checks survived
-    unsigned SurvivedChecks = 0;
-    unsigned SurvivedGuardedOps = 0;
+    // POST-OPTIMIZATION PASS: Verify checks survived and remain dominating
+    DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+
+    std::map<unsigned, Instruction *> SurvivedChecks;
+    std::vector<std::pair<unsigned, Instruction *>> GuardedOps;
 
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
-        if (I.getMetadata("cisb.seccheck")) SurvivedChecks++;
-        if (I.getMetadata("cisb.guarded_by")) SurvivedGuardedOps++;
+        if (MDNode *MD = I.getMetadata("cisb.seccheck")) {
+          unsigned CID = getCheckIDFromMD(MD);
+          if (CID > 0) SurvivedChecks[CID] = &I;
+        }
+        if (MDNode *MD = I.getMetadata("cisb.guarded_by")) {
+          unsigned CID = getCheckIDFromMD(MD);
+          if (CID > 0) GuardedOps.push_back({CID, &I});
+        }
       }
     }
 
-    if (SurvivedChecks > 0 || SurvivedGuardedOps > 0) {
-      errs() << "[CISB-Guard:CFGVerify] Post-Opt verification: " << SurvivedChecks 
-             << " security check(s) active, " << SurvivedGuardedOps << " guarded op(s) in " << F.getName() << "\n";
-      logCFGAudit(F.getName(), "Post-Opt", "Security checks verified post-optimization", SurvivedChecks, SurvivedGuardedOps);
+    bool HasErasure = false;
+    bool HasReordering = false;
+
+    // 1. Check for Erased Checks
+    if (MDNode *ExpectedMD = F.getMetadata("cisb.expected_checks")) {
+      for (unsigned i = 0; i < ExpectedMD->getNumOperands(); ++i) {
+        if (auto *CMD = dyn_cast<ConstantAsMetadata>(ExpectedMD->getOperand(i))) {
+          if (auto *CI = dyn_cast<ConstantInt>(CMD->getValue())) {
+            unsigned ExpectedID = CI->getZExtValue();
+            if (!SurvivedChecks.count(ExpectedID)) {
+              errs() << "[CISB-Guard:CFGVerify] ALERT: Security check ID " << ExpectedID 
+                     << " was ERASED by compiler optimization in " << F.getName() << "!\n";
+              HasErasure = true;
+            }
+          }
+        }
+      }
     }
+
+    for (auto &G : GuardedOps) {
+      unsigned CID = G.first;
+      if (!SurvivedChecks.count(CID)) {
+        errs() << "[CISB-Guard:CFGVerify] ALERT: Guarded operation in " << F.getName() 
+               << " lost security check ID " << CID << " (CHECK_ERASED)!\n";
+        HasErasure = true;
+      }
+    }
+
+    // 2. Check for Reordering
+    for (auto &G : GuardedOps) {
+      unsigned CID = G.first;
+      Instruction *GuardedInst = G.second;
+      if (SurvivedChecks.count(CID)) {
+        Instruction *CheckInst = SurvivedChecks[CID];
+        if (!DT.dominates(CheckInst, GuardedInst)) {
+          errs() << "[CISB-Guard:CFGVerify] ALERT: Guarded operation in " << F.getName() 
+                 << " was hoisted/reordered above check ID " << CID << " (CHECK_REORDERED)!\n";
+          HasReordering = true;
+        }
+      }
+    }
+
+    if (HasErasure) {
+      logCFGAudit(F.getName(), "Post-Opt", "CHECK_ERASED", SurvivedChecks.size(), GuardedOps.size());
+    } else if (HasReordering) {
+      logCFGAudit(F.getName(), "Post-Opt", "CHECK_REORDERED", SurvivedChecks.size(), GuardedOps.size());
+    } else if (!SurvivedChecks.empty() || !GuardedOps.empty()) {
+      errs() << "[CISB-Guard:CFGVerify] Post-Opt verification: " << SurvivedChecks.size() 
+             << " security check(s) active, " << GuardedOps.size() << " guarded op(s) verified in " << F.getName() << "\n";
+      logCFGAudit(F.getName(), "Post-Opt", "CHECK_VERIFIED", SurvivedChecks.size(), GuardedOps.size());
+    }
+
     return PreservedAnalyses::all();
   }
 }

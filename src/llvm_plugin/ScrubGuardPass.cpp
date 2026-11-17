@@ -3,6 +3,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
@@ -11,20 +12,61 @@
 #include <string>
 #include <algorithm>
 #include <fstream>
+#include <cstdlib>
 
 using namespace llvm;
 
 static bool isSensitiveName(StringRef Name) {
   std::string Lower = Name.lower();
-  const char *Keywords[] = {"secret", "key", "pass", "pwd", "hash", "token", "buf", "scrub", "wipe", "auth", "priv"};
+  const char *Keywords[] = {"secret", "key", "pass", "pwd", "hash", "token", "scrub", "wipe", "auth", "priv"};
   for (const char *kw : Keywords) {
     if (Lower.find(kw) != std::string::npos) return true;
   }
   return false;
 }
 
+static bool isLifetimeOrDbg(const Instruction *I) {
+  if (auto *II = dyn_cast<IntrinsicInst>(I)) {
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+    case Intrinsic::dbg_declare:
+    case Intrinsic::dbg_value:
+    case Intrinsic::dbg_assign:
+    case Intrinsic::dbg_label:
+      return true;
+    default:
+      return false;
+    }
+  }
+  return false;
+}
+
+static bool instructionReadsOrEscapes(Instruction &I, AllocaInst *AI) {
+  if (isLifetimeOrDbg(&I)) return false;
+
+  if (auto *LI = dyn_cast<LoadInst>(&I)) {
+    if (getUnderlyingObject(LI->getPointerOperand()) == AI) return true;
+  }
+  if (auto *SI = dyn_cast<StoreInst>(&I)) {
+    if (getUnderlyingObject(SI->getValueOperand()) == AI) return true;
+  }
+  if (auto *CB = dyn_cast<CallBase>(&I)) {
+    for (unsigned i = 0; i < CB->arg_size(); ++i) {
+      if (getUnderlyingObject(CB->getArgOperand(i)) == AI) {
+        if (!CB->doesNotAccessMemory()) return true;
+      }
+    }
+  }
+  if (auto *RI = dyn_cast<ReturnInst>(&I)) {
+    if (RI->getReturnValue() && getUnderlyingObject(RI->getReturnValue()) == AI) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool isBufferReadAfter(MemSetInst *MSI, AllocaInst *AI, Function &F) {
-  // Check if AI is read in any instruction reachable after MSI
   BasicBlock *StartBB = MSI->getParent();
   bool PassedMSI = false;
   for (Instruction &I : *StartBB) {
@@ -33,18 +75,16 @@ static bool isBufferReadAfter(MemSetInst *MSI, AllocaInst *AI, Function &F) {
       continue;
     }
     if (PassedMSI) {
-      if (auto *LI = dyn_cast<LoadInst>(&I)) {
-        if (getUnderlyingObject(LI->getPointerOperand()) == AI) return true;
-      }
+      if (instructionReadsOrEscapes(I, AI)) return true;
     }
   }
 
-  // Check successor blocks
   std::vector<BasicBlock *> Worklist;
   SmallPtrSet<BasicBlock *, 16> Visited;
   for (BasicBlock *Succ : successors(StartBB)) {
-    Worklist.push_back(Succ);
-    Visited.insert(Succ);
+    if (Visited.insert(Succ).second) {
+      Worklist.push_back(Succ);
+    }
   }
 
   while (!Worklist.empty()) {
@@ -52,17 +92,7 @@ static bool isBufferReadAfter(MemSetInst *MSI, AllocaInst *AI, Function &F) {
     Worklist.pop_back();
 
     for (Instruction &I : *BB) {
-      if (auto *LI = dyn_cast<LoadInst>(&I)) {
-        if (getUnderlyingObject(LI->getPointerOperand()) == AI) return true;
-      }
-      if (auto *CB = dyn_cast<CallBase>(&I)) {
-        // If passed as argument to a function other than lifetime markers
-        for (unsigned i = 0; i < CB->arg_size(); ++i) {
-          if (getUnderlyingObject(CB->getArgOperand(i)) == AI) {
-            if (!CB->onlyReadsMemory()) return true;
-          }
-        }
-      }
+      if (instructionReadsOrEscapes(I, AI)) return true;
     }
 
     for (BasicBlock *Succ : successors(BB)) {
@@ -104,7 +134,7 @@ PreservedAnalyses ScrubGuardPass::run(Function &F, FunctionAnalysisManager &FAM)
         auto *AI = dyn_cast<AllocaInst>(Underlying);
         if (!AI) continue;
 
-        bool Sensitive = isSensitiveName(AI->getName()) || isSensitiveName(F.getName());
+        bool Sensitive = isSensitiveName(AI->getName());
         bool DeadAfter = !isBufferReadAfter(MSI, AI, F);
 
         if (Sensitive || DeadAfter) {
@@ -128,7 +158,7 @@ PreservedAnalyses ScrubGuardPass::run(Function &F, FunctionAnalysisManager &FAM)
     InlineAsm *IA = InlineAsm::get(AsmFTy, "", "r,~{memory}", /*hasSideEffects=*/true);
 
     IRBuilder<> Builder(MSI->getNextNode());
-    Builder.CreateCall(IA, {Dest});
+    Builder.CreateCall(AsmFTy, IA, {Dest});
 
     std::string Reason = isSensitiveName(AI->getName()) ? "Sensitive variable identifier" : "Dead-at-exit store elimination threat";
     errs() << "[CISB-Guard:ScrubGuard] Protected zeroing store in " << F.getName() 

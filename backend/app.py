@@ -108,8 +108,10 @@ class CISBHandler(BaseHTTPRequestHandler):
 
         # 6. API Benchmarks
         if path == '/api/benchmarks':
+            q = parse_qs(parsed.query)
+            refresh = q.get('refresh', ['false'])[0].lower() in ('true', '1')
             bench_json = RESULTS_DIR / 'benchmark_results.json'
-            if bench_json.exists():
+            if bench_json.exists() and not refresh:
                 try:
                     data = json.loads(bench_json.read_text(encoding='utf-8'))
                     return self.send_json(data)

@@ -15,13 +15,13 @@ __attribute__((noinline))
 void process_packet_data(void) {
     // Generic variable name with NO sensitive substring ('key', 'secret', etc.)
     // Tests ScrubGuardPass Condition B: CFG reachability analysis detects that
-    // this zero-write is dead before return.
-    char buffer[64];
-    g_anon_leak = buffer;
-    fill_transient(buffer, sizeof(buffer));
+    // this zero-write is dead before return without keyword cheating.
+    char scratch_pad[64];
+    g_anon_leak = scratch_pad;
+    fill_transient(scratch_pad, sizeof(scratch_pad));
 
     // Dead memset before return
-    memset(buffer, 0, sizeof(buffer));
+    memset(scratch_pad, 0, sizeof(scratch_pad));
 }
 
 int main(void) {

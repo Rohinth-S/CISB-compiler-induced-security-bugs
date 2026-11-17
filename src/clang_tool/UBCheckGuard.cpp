@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -21,8 +22,17 @@ using namespace llvm;
 static cl::OptionCategory CISBGuardCategory("CISB-Guard Clang Rewriter Options");
 static cl::opt<std::string> OutputFilename("o", cl::desc("Specify output rewritten C file"), cl::value_desc("filename"), cl::cat(CISBGuardCategory));
 
+static std::string trimParensAndSpace(StringRef S) {
+  S = S.trim();
+  while (S.startswith("(") && S.endswith(")")) {
+    S = S.drop_front(1).drop_back(1).trim();
+  }
+  return S.str();
+}
+
 // Handler 1: Signed Overflow Guard
-// Rewrites: if (x + c < x) -> if (((long long)(x) + (long long)(c)) < (long long)(x))
+// Rewrites: if (x + c < x) -> if (__builtin_add_overflow((x), (c), &(int){0}))
+//           if (a + c > a) -> if (!__builtin_add_overflow((a), (c), &(int){0}) && ((c) > 0))
 class SignedOverflowHandler : public MatchFinder::MatchCallback {
   Rewriter &Rewrite;
 public:
@@ -36,15 +46,77 @@ public:
     SourceManager &SM = *Result.SourceManager;
     SourceLocation Start = BinOp->getBeginLoc();
     SourceLocation End = BinOp->getEndLoc();
+    if (!SM.isInMainFile(Start) || Start.isMacroID()) return;
+
+    // Only apply to signed integer addition
+    if (!AddOp->getType()->isSignedIntegerType()) return;
 
     std::string LHSText = Lexer::getSourceText(CharSourceRange::getTokenRange(AddOp->getLHS()->getSourceRange()), SM, Result.Context->getLangOpts()).str();
     std::string RHSText = Lexer::getSourceText(CharSourceRange::getTokenRange(AddOp->getRHS()->getSourceRange()), SM, Result.Context->getLangOpts()).str();
+    std::string CmpRHSText = Lexer::getSourceText(CharSourceRange::getTokenRange(BinOp->getRHS()->getSourceRange()), SM, Result.Context->getLangOpts()).str();
 
-    // Replace with __builtin_add_overflow
-    std::string Replacement = "__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &(int){0})";
+    std::string CleanLHS = trimParensAndSpace(LHSText);
+    std::string CleanRHS = trimParensAndSpace(RHSText);
+    std::string CleanCmpRHS = trimParensAndSpace(CmpRHSText);
+
+    // Overflow check must compare (A + B) against either A or B
+    if (CleanCmpRHS != CleanLHS && CleanCmpRHS != CleanRHS) return;
+
+    std::string Replacement;
+    if (BinOp->getOpcode() == BO_LT) {
+      Replacement = "__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &(int){0})";
+    } else if (BinOp->getOpcode() == BO_GT) {
+      std::string IncText = (CleanCmpRHS == CleanLHS) ? RHSText : LHSText;
+      Replacement = "(!__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &(int){0}) && ((" + IncText + ") > 0))";
+    } else {
+      return;
+    }
+
     Rewrite.ReplaceText(SourceRange(Start, End), Replacement);
     llvm::errs() << "[CISB-Guard:UBCheckGuard] Rewrote signed overflow check to __builtin_add_overflow\n";
   }
+};
+
+// AST Visitor to detect if a pointer was dereferenced before a given location
+class PriorDerefVisitor : public RecursiveASTVisitor<PriorDerefVisitor> {
+  const ValueDecl *TargetVD;
+  SourceLocation TargetLoc;
+  SourceManager &SM;
+  bool FoundPriorDeref = false;
+
+public:
+  PriorDerefVisitor(const ValueDecl *VD, SourceLocation Loc, SourceManager &SM)
+    : TargetVD(VD), TargetLoc(Loc), SM(SM) {}
+
+  bool VisitUnaryOperator(UnaryOperator *UO) {
+    if (UO->getOpcode() == UO_Deref) {
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenImpCasts())) {
+        if (DRE->getDecl() == TargetVD) {
+          if (SM.isBeforeInTranslationUnit(UO->getBeginLoc(), TargetLoc)) {
+            FoundPriorDeref = true;
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  bool VisitMemberExpr(MemberExpr *ME) {
+    if (ME->isArrow()) {
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(ME->getBase()->IgnoreParenImpCasts())) {
+        if (DRE->getDecl() == TargetVD) {
+          if (SM.isBeforeInTranslationUnit(ME->getBeginLoc(), TargetLoc)) {
+            FoundPriorDeref = true;
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  bool hasPriorDeref() const { return FoundPriorDeref; }
 };
 
 // Handler 2: Post-Dereference Null Check Guard
@@ -55,12 +127,30 @@ public:
   explicit PostDerefNullHandler(Rewriter &R) : Rewrite(R) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
+    const auto *FD = Result.Nodes.getNodeAs<FunctionDecl>("enclosing_fn");
     const auto *If = Result.Nodes.getNodeAs<IfStmt>("null_if");
     const auto *Ptr = Result.Nodes.getNodeAs<Expr>("null_ptr");
-    if (!If || !Ptr) return;
+    const auto *NullRHS = Result.Nodes.getNodeAs<Expr>("null_rhs");
+    if (!If || !Ptr || !FD) return;
 
     SourceManager &SM = *Result.SourceManager;
     SourceLocation IfLoc = If->getBeginLoc();
+    if (!SM.isInMainFile(IfLoc) || IfLoc.isMacroID()) return;
+
+    if (NullRHS && !NullRHS->isNullPointerConstant(*Result.Context, Expr::NPC_ValueDependentIsNotNull)) {
+      return;
+    }
+
+    if (!Ptr->getType()->isPointerType()) return;
+
+    const auto *DRE = dyn_cast<DeclRefExpr>(Ptr->IgnoreParenImpCasts());
+    if (!DRE) return;
+    const ValueDecl *VD = DRE->getDecl();
+    if (!VD) return;
+
+    PriorDerefVisitor Visitor(VD, IfLoc, SM);
+    Visitor.TraverseDecl(const_cast<FunctionDecl *>(FD));
+    if (!Visitor.hasPriorDeref()) return;
 
     std::string PtrText = Lexer::getSourceText(CharSourceRange::getTokenRange(Ptr->getSourceRange()), SM, Result.Context->getLangOpts()).str();
     std::string Barrier = "__asm__ __volatile__(\"\" : \"+r\"(" + PtrText + "));\n    ";
@@ -83,12 +173,17 @@ public:
     if (!Cmp || !Add) return;
 
     SourceManager &SM = *Result.SourceManager;
-    QualType QT = Add->getLHS()->getType();
-    std::string TypeName = QT.getAsString();
-
     SourceLocation AddBegin = Add->getBeginLoc();
     SourceLocation AddEnd = Add->getEndLoc();
+    if (!SM.isInMainFile(AddBegin) || AddBegin.isMacroID()) return;
 
+    const Expr *SubLHS = Add->getLHS()->IgnoreParenImpCasts();
+    QualType OrigType = SubLHS->getType();
+
+    if (!OrigType->isIntegerType()) return;
+    if (Result.Context->getTypeSize(OrigType) >= Result.Context->getTypeSize(Result.Context->IntTy)) return;
+
+    std::string TypeName = OrigType.getAsString();
     std::string AddText = Lexer::getSourceText(CharSourceRange::getTokenRange(SourceRange(AddBegin, AddEnd)), SM, Result.Context->getLangOpts()).str();
     std::string Replacement = "((" + TypeName + ")(" + AddText + "))";
 
@@ -111,7 +206,7 @@ public:
       NullHandler(R),
       PromotionHandler(R) {
 
-    // 1. Matcher for signed overflow: (x + c < x)
+    // 1. Matcher for signed overflow: (x + c < x) or (a + c > a)
     auto AddExpr = binaryOperator(
       hasOperatorName("+"),
       hasLHS(expr().bind("add_lhs")),
@@ -120,23 +215,25 @@ public:
 
     Matcher.addMatcher(
       binaryOperator(
-        hasOperatorName("<"),
+        anyOf(hasOperatorName("<"), hasOperatorName(">")),
         hasLHS(AddExpr),
-        hasRHS(expr())
+        hasRHS(expr().bind("cmp_rhs"))
       ).bind("overflow_cmp"),
       &OverflowHandler
     );
 
-    // 2. Matcher for null check in IfStmt: if (!p) or if (p == 0)
+    // 2. Matcher for post-dereference null check in enclosing function
     Matcher.addMatcher(
-      ifStmt(
-        hasCondition(
-          anyOf(
-            unaryOperator(hasOperatorName("!"), hasUnaryOperand(expr().bind("null_ptr"))),
-            binaryOperator(hasOperatorName("=="), hasLHS(expr().bind("null_ptr")), hasRHS(integerLiteral(equals(0))))
+      functionDecl(forEachDescendant(
+        ifStmt(
+          hasCondition(
+            anyOf(
+              unaryOperator(hasOperatorName("!"), hasUnaryOperand(expr().bind("null_ptr"))),
+              binaryOperator(hasOperatorName("=="), hasLHS(expr().bind("null_ptr")), hasRHS(expr().bind("null_rhs")))
+            )
           )
-        )
-      ).bind("null_if"),
+        ).bind("null_if")
+      )).bind("enclosing_fn"),
       &NullHandler
     );
 
@@ -146,8 +243,7 @@ public:
         hasOperatorName("=="),
         hasLHS(
           binaryOperator(
-            hasOperatorName("+"),
-            hasLHS(hasType(isUnsignedInteger()))
+            hasOperatorName("+")
           ).bind("promoted_add")
         ),
         hasRHS(integerLiteral(equals(0)))
@@ -173,7 +269,13 @@ public:
     SourceManager &SM = Rewrite.getSourceMgr();
     std::string OutStr;
     raw_string_ostream OS(OutStr);
-    Rewrite.getEditBuffer(SM.getMainFileID()).write(OS);
+
+    const RewriteBuffer *RewriteBuf = Rewrite.getRewriteBufferFor(SM.getMainFileID());
+    if (RewriteBuf) {
+      RewriteBuf->write(OS);
+    } else {
+      OS << SM.getBufferData(SM.getMainFileID());
+    }
 
     if (!OutputFilename.empty()) {
       std::error_code EC;

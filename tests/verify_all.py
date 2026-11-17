@@ -5,7 +5,7 @@ Asserts:
 1. Every security test case triggers exploit under baseline -O3 (exit code 1 / VULNERABLE)
    and succeeds under CISB-Guard -O3 (exit code 0 / PROTECTED).
 2. Web Dashboard path traversal attacks (e.g. /../backend/app.py) are strictly blocked with 404.
-3. Benchmarks compute real runtime overhead and write valid JSON results.
+3. Benchmarks compute real runtime overhead and write valid JSON results and Pareto chart.
 """
 
 import sys
@@ -30,6 +30,13 @@ def test_security_cases():
     print("[TEST 1] Verifying Security Case Oracles (Baseline vs Mitigated)")
     print("=" * 60)
 
+    exploit_cases = {
+        "01_stack_key_leak", "02_password_scrub", "03_crypto_hash_scrub",
+        "04_unnamed_dead_memset", "05_signed_overflow_check", "06_signed_overflow_gt",
+        "07_post_deref_null_check", "08_int_promotion_u8", "09_undef_ssce_mutant",
+        "12_null_check_survival"
+    }
+
     all_passed = True
     for cid in sorted(CASES_INFO.keys()):
         print(f"\n--- Running Case: {cid} ({CASES_INFO[cid]['title']}) ---")
@@ -44,13 +51,18 @@ def test_security_cases():
         print(f"  [Mitigated -O3] Status: {mit.get('status')} | Exit: {mit.get('exit_code')}")
         print(f"                  Output: {mit.get('stdout')[:70]}")
 
+        if cid in exploit_cases:
+            if base.get('status') != 'VULNERABLE' or base.get('exit_code') == 0:
+                print(f"  [FAIL] Exploit case {cid} did not reproduce vulnerability under baseline -O3!")
+                all_passed = False
+
         if mit.get('status') != 'PROTECTED' or mit.get('exit_code') != 0:
             print(f"  [FAIL] Case {cid} did not achieve PROTECTED status under mitigation!")
             all_passed = False
         else:
             print(f"  [PASS] Case {cid} successfully protected.")
 
-    assert all_passed, "Not all cases achieved PROTECTED status under mitigation!"
+    assert all_passed, "Not all cases achieved expected status under baseline/mitigation!"
     print("\n>>> All security cases verified successfully! <<<")
 
 def test_web_path_traversal():
@@ -58,7 +70,6 @@ def test_web_path_traversal():
     print("[TEST 2] Verifying Web Dashboard Path-Traversal Security")
     print("=" * 60)
 
-    # Start test server in background thread on dynamic port
     port = 8899
     server = ThreadingHTTPServer(('127.0.0.1', port), CISBHandler)
     srv_thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -96,6 +107,15 @@ def test_web_path_traversal():
         assert len(cases) == 12
         print(f"  [PASS] GET /api/cases returned {len(cases)} cases.")
 
+    # API Endpoint: GET /api/benchmarks?refresh=true
+    with urllib.request.urlopen(f"{base_url}/api/benchmarks") as resp:
+        assert resp.status == 200
+        bench = json.loads(resp.read().decode('utf-8'))
+        assert "workloads" in bench
+        assert "overhead_vs_o3" in bench
+        assert "security_protection_rate" in bench
+        print(f"  [PASS] GET /api/benchmarks returned valid workloads and protection rates.")
+
     server.shutdown()
     print(">>> Path traversal protection verified! <<<")
 
@@ -107,6 +127,7 @@ def test_benchmarks():
     res = run_benchmarks()
     assert "workloads" in res, "Missing workloads in benchmark output"
     assert "overhead_vs_o3" in res, "Missing overhead calculation in benchmark output"
+    assert "security_protection_rate" in res, "Missing protection rate in benchmark output"
 
     print("Measured Workloads:")
     for w, times in res["workloads"].items():
@@ -115,6 +136,14 @@ def test_benchmarks():
     print("\nOverhead vs -O3:")
     for strat, ov in res["overhead_vs_o3"].items():
         print(f"  {strat:30s}: {ov}")
+
+    print("\nSecurity Protection Rate:")
+    for strat, rate in res["security_protection_rate"].items():
+        print(f"  {strat:30s}: {rate}")
+
+    pareto_img = REPO_ROOT / "results" / "security_vs_overhead.png"
+    assert pareto_img.exists() and pareto_img.stat().st_size > 0, "Pareto chart missing or empty"
+    print(f"\n  [PASS] Pareto chart verified at {pareto_img} ({pareto_img.stat().st_size} bytes).")
 
     print("\n>>> Benchmarks verified successfully! <<<")
 

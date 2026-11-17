@@ -32,7 +32,7 @@ void inspect_memory(char *buf, size_t len) {
     safe_copy[len] = '\0';
 
     if (strstr(safe_copy, "TOP_SECRET")) {
-        printf("[EXPLOITED] SECRET LEAKED FROM RAM: \"TOP_SECRET_AES256_KEY_99481\"\n");
+        printf("[EXPLOITED] SECRET LEAKED FROM RAM: \"%s\"\n", safe_copy);
         exit(1);
     } else {
         printf("[SAFE] Memory properly scrubbed! Stack bytes successfully sanitized.\n");
