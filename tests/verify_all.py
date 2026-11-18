@@ -60,10 +60,16 @@ def test_security_cases():
         if cid in exploit_cases:
             if base.get('status') != 'VULNERABLE' or base.get('exit_code') == 0:
                 print(f"  [FAIL] Exploit case {cid} did not reproduce vulnerability under baseline -O3!")
+                print(f"         Base stdout: {base.get('stdout')}")
+                print(f"         Base stderr: {base.get('stderr')}")
                 all_passed = False
 
         if mit.get('status') != 'PROTECTED' or mit.get('exit_code') != 0:
             print(f"  [FAIL] Case {cid} did not achieve PROTECTED status under mitigation!")
+            print(f"         Mit stdout: {mit.get('stdout')}")
+            print(f"         Mit stderr: {mit.get('stderr')}")
+            if mit.get('disassembly'):
+                print(f"         Mit disasm/IR: {mit.get('disassembly')[:200]}")
             all_passed = False
         else:
             print(f"  [PASS] Case {cid} successfully protected.")

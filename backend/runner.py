@@ -201,19 +201,19 @@ def run_case_real(case_id: str, mitigated: bool) -> dict:
             ir_out = Path(temp_dir) / "optimized.ll"
             if opt:
                 if not mitigated:
-                    cmd = [opt, "-passes=default<O2>", "-S", str(src_file), "-o", str(ir_out)]
+                    cmd = [opt, "-passes=function(early-cse)", "-S", str(src_file), "-o", str(ir_out)]
                     res = subprocess.run(cmd, capture_output=True, text=True, env=audit_env)
                 else:
                     if plugin_so.exists():
-                        passes = "function(cisb-undef-freeze),default<O2>"
+                        passes = "function(cisb-undef-freeze),function(early-cse)"
                         cmd = [opt, f"-load-pass-plugin={plugin_so}", f"-passes={passes}", "-S", str(src_file), "-o", str(ir_out)]
                     else:
-                        passes = "default<O2>"
+                        passes = "function(early-cse)"
                         cmd = [opt, f"-passes={passes}", "-S", str(src_file), "-o", str(ir_out)]
                     res = subprocess.run(cmd, capture_output=True, text=True, env=audit_env)
 
                 compile_time_ms = (time.time() - t0) * 1000.0
-                if ir_out.exists():
+                if ir_out.exists() and res.returncode == 0:
                     disasm_display = ir_out.read_text(encoding="utf-8", errors="ignore")
                 else:
                     disasm_display = res.stderr or res.stdout
@@ -229,7 +229,7 @@ def run_case_real(case_id: str, mitigated: bool) -> dict:
                         cmd.extend([str(src_file), "-o", str(ir_out)])
                         res = subprocess.run(cmd, capture_output=True, text=True, env=audit_env)
                     compile_time_ms = (time.time() - t0) * 1000.0
-                    if ir_out.exists():
+                    if ir_out.exists() and res.returncode == 0:
                         disasm_display = ir_out.read_text(encoding="utf-8", errors="ignore")
                     else:
                         disasm_display = res.stderr or res.stdout
