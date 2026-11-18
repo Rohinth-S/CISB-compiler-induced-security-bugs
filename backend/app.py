@@ -22,8 +22,8 @@ DEMOS_LIST = [
         "id": "demo_a",
         "name": "Live Demo A: OSpec1 Stack Secret Leak",
         "case_id": "01_stack_key_leak",
-        "tag": "OSpec1 · Dead Store Elimination",
-        "headline": "Watch the Secret Leak — Then Watch CISB-Guard Stop It",
+        "tag": "OSpec1 - Dead Store Elimination",
+        "headline": "Watch the Secret Leak -- Then Watch CISB-Guard Stop It",
         "target_fn": "authenticate",
         "explanation": "Standard -O3 Dead Store Elimination (DSE) removes memset(secret_key, 0, 64) before return because buffer lifetime ends. Attacker reading uninitialized stack memory recovers 'TOP_SECRET_AES256_KEY_99481'. CISB-Guard ScrubGuardPass makes memset volatile and injects an inline memory barrier, forcing zeroing stores (movups/pxor) to survive in assembly."
     },
@@ -31,8 +31,8 @@ DEMOS_LIST = [
         "id": "demo_b",
         "name": "Live Demo B: ISpec1 Integer Overflow Bypass",
         "case_id": "05_signed_overflow_check",
-        "tag": "ISpec1 · Undefined Behavior",
-        "headline": "Watch Signed Overflow Check Disappear — Then Reappear as Safe Checked Arithmetic",
+        "tag": "ISpec1 - Undefined Behavior",
+        "headline": "Watch Signed Overflow Check Disappear -- Then Reappear as Safe Checked Arithmetic",
         "target_fn": "check_buffer_offset",
         "explanation": "Under the C No-UB assumption, signed integer overflow cannot occur. Clang -O3 deduces (offset + 100 < offset) is always false and erases the security abort. CISB-Guard UBCheckGuard rewrites this into __builtin_add_overflow, producing a single hardware carry check (jo) with zero UB."
     },
@@ -40,8 +40,8 @@ DEMOS_LIST = [
         "id": "demo_c",
         "name": "Live Demo C: ISpec1 CISBFuzz Undef Condition Erasure",
         "case_id": "09_undef_ssce_mutant",
-        "tag": "EuroSec '26 · Silent Security Check Erasure",
-        "headline": "Watch EarlyCSE Fold Security Gate on Undef — Then Freeze It",
+        "tag": "EuroSec '26 - Silent Security Check Erasure",
+        "headline": "Watch EarlyCSE Fold Security Gate on Undef -- Then Freeze It",
         "target_fn": "security_gate",
         "explanation": "When an uninitialized/undef operand feeds a comparison guard, EarlyCSE simplifies it to 'br i1 false', deleting the security gate. CISB-Guard UndefFreezeGuardPass inserts FreezeInst, fixing the undef value and preserving the conditional security branch."
     }

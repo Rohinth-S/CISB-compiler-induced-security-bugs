@@ -29,7 +29,7 @@ CASES_INFO = {
         "class": "OSpec1 (Persistent-State Information Leak)",
         "file": "01_stack_key_leak.c",
         "target_fn": "authenticate",
-        "paper_cite": "Xu et al. §5.1, Figure 1; Linux kernel commit d4c5efdb9",
+        "paper_cite": "Xu et al. Sec. 5.1, Figure 1; Linux kernel commit d4c5efdb9",
         "desc": "Compiler removes memset(secret_key, 0, 64) before return because buffer lifetime ends. Attacker reading uninitialized stack memory recovers 'TOP_SECRET_AES256_KEY_99481'."
     },
     "02_password_scrub": {
@@ -37,7 +37,7 @@ CASES_INFO = {
         "class": "OSpec1 (Persistent-State Information Leak)",
         "file": "02_password_scrub.c",
         "target_fn": "verify_password",
-        "paper_cite": "Xu et al. §5.1; USENIX Security '23",
+        "paper_cite": "Xu et al. Sec. 5.1; USENIX Security '23",
         "desc": "User password verification buffer scrub is deleted under -O3. Residual stack bytes expose credentials across subsequent call frames."
     },
     "03_crypto_hash_scrub": {
@@ -53,15 +53,15 @@ CASES_INFO = {
         "class": "OSpec1 (CFG Reachability Detection)",
         "file": "04_unnamed_dead_memset.c",
         "target_fn": "process_packet_data",
-        "paper_cite": "Xu et al. §5.1, Table 4",
-        "desc": "Generic variable without sensitive name keywords ('scratch_pad') proves ScrubGuardPass detects dead-at-exit zeroing via SSA alias closure & CFG reachability analysis."
+        "paper_cite": "Xu et al. Sec. 5.1, Table 4",
+        "desc": "Generic variable without sensitive name keywords ('scratch_pad') proves ScrubGuardPass detects dead-at-exit zeroing via SSA alias closure and CFG reachability analysis."
     },
     "05_signed_overflow_check": {
         "title": "ISpec1: Signed Overflow Bounds-Check Elimination (x + c < x)",
         "class": "ISpec1 (Undefined Behavior Check Elimination)",
         "file": "05_signed_overflow_check.c",
         "target_fn": "check_buffer_offset",
-        "paper_cite": "Xu et al. §4.1, Figure 1; No-UB model",
+        "paper_cite": "Xu et al. Sec. 4.1, Figure 1; No-UB model",
         "desc": "Developer writes (offset + 100 < offset) to prevent buffer wrapping. Under the No-UB model, Clang assumes signed overflow never occurs and erases the safety abort."
     },
     "06_signed_overflow_gt": {
@@ -69,7 +69,7 @@ CASES_INFO = {
         "class": "ISpec1 (CISBFuzz Fig. 4 Optimization Flaw)",
         "file": "06_signed_overflow_gt.c",
         "target_fn": "check_overflow_gt",
-        "paper_cite": "Oh & Kim, EuroSec '26, Figure 4",
+        "paper_cite": "Oh and Kim, EuroSec '26, Figure 4",
         "desc": "Condition (a + 10 > a) meant to protect against integer wrapping is statically folded to TRUE by -O3, allowing INT_MAX inputs to bypass validation."
     },
     "07_post_deref_null_check": {
@@ -85,7 +85,7 @@ CASES_INFO = {
         "class": "ISpec1 (Sub-int Promotion Semantics Mismatch)",
         "file": "08_int_promotion_u8.c",
         "target_fn": "check_u8_overflow",
-        "paper_cite": "GCC Bugzilla #87060; ISO C17 §6.3.1.1",
+        "paper_cite": "GCC Bugzilla #87060; ISO C17 Sec. 6.3.1.1",
         "desc": "Narrow unsigned integer (uint8_t) is promoted to signed 32-bit int. The wraparound check (u8 + 1 == 0) compares 256 == 0 and is completely deleted."
     },
     "09_undef_ssce_mutant": {
@@ -93,7 +93,7 @@ CASES_INFO = {
         "class": "ISpec1 / CISBFuzz (Silent Security Check Erasure)",
         "file": "09_undef_ssce_mutant.ll",
         "target_fn": "security_gate",
-        "paper_cite": "Oh & Kim, EuroSec '26, Figure 5 (LLVM 18)",
+        "paper_cite": "Oh and Kim, EuroSec '26, Figure 5 (LLVM 18)",
         "desc": "Uninitialized/undef operand in comparison guard permits EarlyCSE to fold the condition to false and strip the entire security gate block."
     },
     "10_div_zero_check_audit": {
@@ -101,7 +101,7 @@ CASES_INFO = {
         "class": "ISpec2 (Check Survival & Order Verification)",
         "file": "10_div_zero_check_audit.c",
         "target_fn": "safe_divide",
-        "paper_cite": "Debian Bug #616180; Xu et al. §4.2, Figure 3",
+        "paper_cite": "Debian Bug #616180; Xu et al. Sec. 4.2, Figure 3",
         "desc": "Verifies that defensive guards dominating hazardous operations (like division by zero) survive -O3 and remain dominated via CFGVerifyPass."
     },
     "11_failure_cfg_check": {
@@ -109,7 +109,7 @@ CASES_INFO = {
         "class": "ISpec2 (Security Boundary Discovery)",
         "file": "11_failure_cfg_check.c",
         "target_fn": "process_virtual_memory",
-        "paper_cite": "Xu et al. §3.1, §4.2; Linux kernel VM_SHARED model",
+        "paper_cite": "Xu et al. Sec. 3.1, Sec. 4.2; Linux kernel VM_SHARED model",
         "desc": "Automatic discovery of security boundary branches using the MustFail(BT) ^ MustFail(BF) post-dominance rule on failure-handling blocks."
     },
     "12_null_check_survival": {
@@ -117,7 +117,7 @@ CASES_INFO = {
         "class": "ISpec1/ISpec2 (Differential Verification Layer)",
         "file": "12_null_check_survival.c",
         "target_fn": "process_node",
-        "paper_cite": "Xu et al. §4.2, §7.3; Formal verification layer",
+        "paper_cite": "Xu et al. Sec. 4.2, Sec. 7.3; Formal verification layer",
         "desc": "Validates that every tagged security check branch survives aggressive optimization, flagging silent check erasure alerts (CHECK_ERASED) if erased."
     }
 }
@@ -235,18 +235,18 @@ def run_case_real(case_id: str, mitigated: bool) -> dict:
                         disasm_display = res.stderr or res.stdout
                 else:
                     compile_time_ms = 0.0
-                    disasm_display = "; [INFO] LLVM opt or clang toolchain is required to transform .ll IR files."
+                    disasm_display = "; [UNAVAILABLE] LLVM 18 opt or clang toolchain required to transform .ll IR files (run inside Docker or Linux CI)."
+                    run_stdout = "[UNAVAILABLE] LLVM 18 opt/clang required (run inside Docker or Linux CI)."
+                    exit_code = 2
 
-            is_protected = "freeze" in disasm_display or not ("br label %failed" in disasm_display or "br i1 false" in disasm_display)
-            if "freeze" in disasm_display:
-                run_stdout = "[SAFE] Freeze instruction preserved branch condition."
-                exit_code = 0
-            elif "br label %failed" in disasm_display or "br i1 false" in disasm_display:
-                run_stdout = "[EXPLOITED] EarlyCSE folded branch condition to false."
-                exit_code = 1
-            else:
-                run_stdout = "[SAFE] Mitigation active." if mitigated else "[EXPLOITED] Unchecked condition vulnerable."
-                exit_code = 0 if mitigated else 1
+            if exit_code != 2:
+                is_protected = ("freeze" in disasm_display) and ("br label %failed" not in disasm_display) and ("br i1 false" not in disasm_display)
+                if is_protected:
+                    run_stdout = "[SAFE] Freeze instruction preserved branch condition."
+                    exit_code = 0
+                else:
+                    run_stdout = "[EXPLOITED] EarlyCSE folded branch condition to false."
+                    exit_code = 1
 
         else:
             # C Source Case
@@ -277,7 +277,12 @@ def run_case_real(case_id: str, mitigated: bool) -> dict:
                 run_stdout = "Compilation failed:\n" + (c_res.stderr or c_res.stdout)
                 exit_code = 1
 
-        status = "PROTECTED" if exit_code == 0 else "VULNERABLE"
+        if exit_code == 0:
+            status = "PROTECTED"
+        elif exit_code == 2:
+            status = "UNAVAILABLE"
+        else:
+            status = "VULNERABLE"
 
         return {
             "case_id": case_id,

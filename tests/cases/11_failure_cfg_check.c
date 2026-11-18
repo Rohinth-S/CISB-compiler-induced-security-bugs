@@ -2,12 +2,18 @@
 #include <stdlib.h>
 
 __attribute__((noinline))
+void log_vm_fault(void) {
+    asm volatile("" ::: "memory");
+}
+
+__attribute__((noinline))
 int process_virtual_memory(unsigned long addr, unsigned long vm_end) {
     // Linux kernel VM_SHARED / addr < vm_end / BUG() CFG model:
-    // Error condition returns negative error code (-EINVAL)
+    // Error condition performs side-effect fault logging and returns negative error code (-EINVAL)
     // CFGVerifyPass evaluates XOR Post-Dominance: MustFail(BT) ^ MustFail(BF) == True
     // Flags this branch as a true Security Boundary and audits its survival under -O3.
     if (addr >= vm_end) {
+        log_vm_fault();
         return -1; // -EINVAL
     }
     return (int)(vm_end - addr);

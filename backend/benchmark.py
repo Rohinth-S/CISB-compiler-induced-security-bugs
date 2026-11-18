@@ -41,7 +41,7 @@ STRATEGIES = {
 def find_compiler():
     return find_tool("clang-18") or find_tool("clang") or find_tool("gcc")
 
-def run_single_benchmark(src_path, flags, is_cisb_guard=False, runs=3):
+def run_single_benchmark(src_path, flags, is_cisb_guard=False, runs=5):
     compiler = find_compiler()
     temp_dir = tempfile.mkdtemp(prefix="cisb_bench_")
     exe_name = "bench_bin.exe" if sys.platform == "win32" else "bench_bin"
@@ -60,10 +60,23 @@ def run_single_benchmark(src_path, flags, is_cisb_guard=False, runs=3):
         timings = []
         for _ in range(runs):
             t0 = time.perf_counter()
-            r = subprocess.run([str(exe_path)], capture_output=True, text=True, errors='replace', timeout=10)
+            r = subprocess.run([str(exe_path)], capture_output=True, text=True, errors='replace', timeout=15)
             t1 = time.perf_counter()
             if r.returncode == 0:
-                timings.append((t1 - t0) * 1000.0)
+                measured = None
+                for line in (r.stdout or "").splitlines():
+                    line = line.strip()
+                    if line.startswith("{") and "time_ms" in line:
+                        try:
+                            d = json.loads(line)
+                            if "time_ms" in d:
+                                measured = float(d["time_ms"])
+                                break
+                        except Exception:
+                            pass
+                if measured is None:
+                    measured = (t1 - t0) * 1000.0
+                timings.append(measured)
 
         if not timings:
             return None
@@ -91,7 +104,6 @@ def measure_protection_rate(strat_name, flags):
             if res.get("status") == "PROTECTED" and res.get("exit_code") == 0:
                 protected_count += 1
         elif src_path.suffix == ".ll":
-            # Baseline .ll case under optimizer
             res = run_case_real(cid, mitigated=False)
             if res.get("status") == "PROTECTED" and res.get("exit_code") == 0:
                 protected_count += 1
@@ -132,7 +144,7 @@ def run_benchmarks():
 
         for strat_name, flags in STRATEGIES.items():
             is_guard = (strat_name == "CISB-Guard (-O3)")
-            med_time = run_single_benchmark(src_path, flags, is_cisb_guard=is_guard, runs=3)
+            med_time = run_single_benchmark(src_path, flags, is_cisb_guard=is_guard, runs=5)
 
             if med_time is not None:
                 results["workloads"][bname][strat_name] = round(med_time, 2)
@@ -209,12 +221,10 @@ def run_benchmarks():
             "CISB-Guard (-O3)": "#2ECC71"
         }
 
-        pareto_points = []
         for strat in STRATEGIES:
             ov = overhead_pct_val.get(strat, 0.0)
             prot = results["protection_pct"].get(strat, 0.0)
             if results["overhead_vs_o3"].get(strat) != "N/A":
-                pareto_points.append((ov, prot, strat))
                 color = scatter_colors.get(strat, "#333333")
                 size = 140 if strat == "CISB-Guard (-O3)" else 80
                 ax_pareto.scatter(ov, prot, color=color, s=size, edgecolors="black", linewidths=1.5, zorder=5)

@@ -12,6 +12,8 @@ import sys
 import os
 import json
 import time
+import shutil
+import subprocess
 import urllib.request
 import urllib.error
 import threading
@@ -51,6 +53,10 @@ def test_security_cases():
         print(f"  [Mitigated -O3] Status: {mit.get('status')} | Exit: {mit.get('exit_code')}")
         print(f"                  Output: {mit.get('stdout')[:70]}")
 
+        if base.get('status') == 'UNAVAILABLE' or mit.get('status') == 'UNAVAILABLE':
+            print(f"  [SKIP] Case {cid} toolchain unavailable in current environment (LLVM 18 opt/clang required).")
+            continue
+
         if cid in exploit_cases:
             if base.get('status') != 'VULNERABLE' or base.get('exit_code') == 0:
                 print(f"  [FAIL] Exploit case {cid} did not reproduce vulnerability under baseline -O3!")
@@ -64,6 +70,80 @@ def test_security_cases():
 
     assert all_passed, "Not all cases achieved expected status under baseline/mitigation!"
     print("\n>>> All security cases verified successfully! <<<")
+
+def test_llvm18_plugin_audit():
+    print("\n" + "=" * 60)
+    print("[TEST 1B] Verifying Real LLVM 18 Pass Execution & CFGVerifyPass Audit Alerts")
+    print("=" * 60)
+
+    plugin_so = REPO_ROOT / "build" / "libCISBGuard.so"
+    clang_bin = shutil.which("clang") or shutil.which("clang-18")
+
+    if not plugin_so.exists() or not clang_bin:
+        print("  [SKIP] libCISBGuard.so or clang not found in current environment (Linux CI will verify).")
+        return
+
+    audit_file = REPO_ROOT / "results" / "verify_test1b_audit.json"
+    if audit_file.exists():
+        audit_file.unlink()
+
+    env = os.environ.copy()
+    env["CISB_AUDIT_LOG"] = str(audit_file)
+
+    # 1. Compile 10_div_zero_check_audit.c with cisb-guard-cc
+    out_bin10 = REPO_ROOT / "results" / "tmp_test10"
+    cmd10 = [sys.executable, str(REPO_ROOT / "bin" / "cisb_guard_cc.py"), "-O3", str(REPO_ROOT / "tests" / "cases" / "10_div_zero_check_audit.c"), "-o", str(out_bin10)]
+    res10 = subprocess.run(cmd10, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert res10.returncode == 0, f"Compilation of case 10 failed: {res10.stderr}"
+
+    # 2. Compile 11_failure_cfg_check.c with cisb-guard-cc
+    out_bin11 = REPO_ROOT / "results" / "tmp_test11"
+    cmd11 = [sys.executable, str(REPO_ROOT / "bin" / "cisb_guard_cc.py"), "-O3", str(REPO_ROOT / "tests" / "cases" / "11_failure_cfg_check.c"), "-o", str(out_bin11)]
+    res11 = subprocess.run(cmd11, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert res11.returncode == 0, f"Compilation of case 11 failed: {res11.stderr}"
+
+    # 3. Compile 04_unnamed_dead_memset.c with cisb-guard-cc
+    out_bin04 = REPO_ROOT / "results" / "tmp_test04"
+    cmd04 = [sys.executable, str(REPO_ROOT / "bin" / "cisb_guard_cc.py"), "-O3", str(REPO_ROOT / "tests" / "cases" / "04_unnamed_dead_memset.c"), "-o", str(out_bin04)]
+    res04 = subprocess.run(cmd04, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert res04.returncode == 0, f"Compilation of case 04 failed: {res04.stderr}"
+
+    # 4. Compile 12_null_check_survival.c directly with clang -O3 -fpass-plugin=... (bypassing AST tool to trigger CHECK_ERASED)
+    out_bin12 = REPO_ROOT / "results" / "tmp_test12"
+    cmd12 = [clang_bin, "-O3", f"-fpass-plugin={plugin_so}", str(REPO_ROOT / "tests" / "cases" / "12_null_check_survival.c"), "-o", str(out_bin12)]
+    res12 = subprocess.run(cmd12, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert res12.returncode == 0, f"Direct compilation of case 12 failed: {res12.stderr}"
+
+    # Verify audit file contents
+    assert audit_file.exists(), "CISB_AUDIT_LOG was not created by LLVM passes!"
+    with open(audit_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    records = [json.loads(line) for line in lines if line.strip()]
+
+    has_pre_opt = any(r.get("stage") == "Pre-Opt" and r.get("pass") == "CFGVerifyPass" for r in records)
+    has_check_verified = any(r.get("event") == "CHECK_VERIFIED" for r in records)
+    has_check_erased = any(r.get("event") == "CHECK_ERASED" for r in records)
+    has_dead_memset = any("Dead-at-exit store elimination threat" in r.get("reason", "") for r in records)
+
+    print(f"  [AUDIT] Pre-Opt Tagged: {has_pre_opt}")
+    print(f"  [AUDIT] CHECK_VERIFIED: {has_check_verified}")
+    print(f"  [AUDIT] CHECK_ERASED (Raw -O3 bypass): {has_check_erased}")
+    print(f"  [AUDIT] Dead-at-exit ScrubGuard Threat: {has_dead_memset}")
+
+    assert has_pre_opt, "Missing Pre-Opt CFG tagging in audit log"
+    assert has_check_verified, "Missing CHECK_VERIFIED in audit log"
+    assert has_check_erased, "Missing CHECK_ERASED in audit log for unhardened case 12"
+    assert has_dead_memset, "Missing Dead-at-exit threat in audit log for case 04"
+
+    # Clean up temp binaries and audit file
+    for p in [out_bin10, out_bin11, out_bin04, out_bin12, audit_file]:
+        if p.exists():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+    print(">>> LLVM 18 Plugin execution and CFG audit alerts verified! <<<")
 
 def test_web_path_traversal():
     print("\n" + "=" * 60)
@@ -149,6 +229,7 @@ def test_benchmarks():
 
 if __name__ == '__main__':
     test_security_cases()
+    test_llvm18_plugin_audit()
     test_web_path_traversal()
     test_benchmarks()
     print("\n" + "#" * 60)

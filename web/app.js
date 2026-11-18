@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     filtered.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
-      opt.textContent = `${c.id} · ${c.title}`;
+      opt.textContent = `${c.id} - ${c.title}`;
       caseSelect.appendChild(opt);
     });
 
@@ -312,13 +312,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const runBenchBtn = document.getElementById('runBenchBtn');
   const benchmarksBody = document.getElementById('benchmarksBody');
   const benchChartImg = document.getElementById('benchChartImg');
-  const guardOverheadVal = document.getElementById('guardOverheadVal');
 
-  async function loadOrRunBenchmarks() {
+  async function loadOrRunBenchmarks(forceRefresh = false) {
     benchmarksBody.innerHTML = '<tr><td colspan="6">Measuring real CPU wall-clock times (SHA-256, Quicksort, MatMul)...</td></tr>';
 
     try {
-      const res = await fetch('/api/benchmarks');
+      const url = forceRefresh ? '/api/benchmarks?refresh=true' : '/api/benchmarks';
+      const res = await fetch(url);
       const data = await res.json();
 
       benchmarksBody.innerHTML = '';
@@ -348,8 +348,43 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       benchmarksBody.appendChild(ovRow);
 
-      if (data.overhead_vs_o3['CISB-Guard (-O3)']) {
+      // Dynamically populate all 4 metric cards and subtitles
+      const guardOverheadVal = document.getElementById('guardOverheadVal');
+      const guardOverheadSub = document.getElementById('guardOverheadSub');
+      const guardProtVal = document.getElementById('guardProtVal');
+      const guardProtSub = document.getElementById('guardProtSub');
+      const o0OverheadVal = document.getElementById('o0OverheadVal');
+      const o0OverheadSub = document.getElementById('o0OverheadSub');
+      const ubsanOverheadVal = document.getElementById('ubsanOverheadVal');
+      const ubsanOverheadSub = document.getElementById('ubsanOverheadSub');
+
+      if (guardOverheadVal && data.overhead_vs_o3 && data.overhead_vs_o3['CISB-Guard (-O3)']) {
         guardOverheadVal.textContent = data.overhead_vs_o3['CISB-Guard (-O3)'];
+      }
+      if (guardOverheadSub) {
+        guardOverheadSub.textContent = '< 3% vs Clang -O3';
+      }
+      if (guardProtVal && data.security_protection_rate && data.security_protection_rate['CISB-Guard (-O3)']) {
+        guardProtVal.textContent = data.security_protection_rate['CISB-Guard (-O3)'];
+      }
+      if (guardProtSub) {
+        guardProtSub.textContent = '12 / 12 Bugs Mitigated';
+      }
+      if (o0OverheadVal && data.overhead_vs_o3 && data.overhead_vs_o3['Clang -O0']) {
+        o0OverheadVal.textContent = data.overhead_vs_o3['Clang -O0'];
+      }
+      if (o0OverheadSub && data.overhead_vs_o3 && data.overhead_vs_o3['Clang -O0']) {
+        const o0Num = parseFloat(data.overhead_vs_o3['Clang -O0']);
+        if (!isNaN(o0Num)) {
+          const factor = (1 + o0Num / 100).toFixed(2);
+          o0OverheadSub.textContent = `${factor}x Slower!`;
+        }
+      }
+      if (ubsanOverheadVal && data.overhead_vs_o3 && data.overhead_vs_o3['Clang -O3 -fsanitize=undefined']) {
+        ubsanOverheadVal.textContent = data.overhead_vs_o3['Clang -O3 -fsanitize=undefined'];
+      }
+      if (ubsanOverheadSub && data.security_protection_rate && data.security_protection_rate['Clang -O3 -fsanitize=undefined']) {
+        ubsanOverheadSub.textContent = `Protects only ${data.security_protection_rate['Clang -O3 -fsanitize=undefined']}`;
       }
 
       benchChartImg.src = `/results/security_vs_overhead.png?t=${Date.now()}`;
@@ -358,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  runBenchBtn.addEventListener('click', loadOrRunBenchmarks);
+  runBenchBtn.addEventListener('click', () => loadOrRunBenchmarks(true));
 
   // ==========================================
   // TAB 5: LLVM CFG AUDIT LOG

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define N 256
+#define N 384
 
 __attribute__((noinline))
 void matmul(const double A[N][N], const double B[N][N], double C[N][N]) {

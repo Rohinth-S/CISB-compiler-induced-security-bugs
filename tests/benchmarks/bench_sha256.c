@@ -72,7 +72,7 @@ void hash_block_with_scrub(SHA256_CTX *ctx, const uint8_t data[]) {
 }
 
 int main(int argc, char **argv) {
-    int iterations = 100000;
+    int iterations = 300000;
     if (argc > 1) iterations = atoi(argv[1]);
 
     SHA256_CTX ctx;

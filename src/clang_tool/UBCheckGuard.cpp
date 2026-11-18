@@ -31,8 +31,8 @@ static std::string trimParensAndSpace(StringRef S) {
 }
 
 // Handler 1: Signed Overflow Guard
-// Rewrites: if (x + c < x) -> if (__builtin_add_overflow((x), (c), &(int){0}))
-//           if (a + c > a) -> if (!__builtin_add_overflow((a), (c), &(int){0}) && ((c) > 0))
+// Rewrites: if (x + c < x) -> if ({ __typeof__(x) _cisb_r; __builtin_add_overflow((x), (c), &_cisb_r); })
+//           if (a + c > a) -> if ({ __typeof__(a) _cisb_r; !__builtin_add_overflow((a), (c), &_cisb_r) && ((c) > 0); })
 class SignedOverflowHandler : public MatchFinder::MatchCallback {
   Rewriter &Rewrite;
 public:
@@ -64,10 +64,10 @@ public:
 
     std::string Replacement;
     if (BinOp->getOpcode() == BO_LT) {
-      Replacement = "__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &(int){0})";
+      Replacement = "({ __typeof__(" + LHSText + ") _cisb_r; __builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &_cisb_r); })";
     } else if (BinOp->getOpcode() == BO_GT) {
       std::string IncText = (CleanCmpRHS == CleanLHS) ? RHSText : LHSText;
-      Replacement = "(!__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &(int){0}) && ((" + IncText + ") > 0))";
+      Replacement = "({ __typeof__(" + LHSText + ") _cisb_r; !__builtin_add_overflow((" + LHSText + "), (" + RHSText + "), &_cisb_r) && ((" + IncText + ") > 0); })";
     } else {
       return;
     }
@@ -120,7 +120,7 @@ public:
 };
 
 // Handler 2: Post-Dereference Null Check Guard
-// Inserts: __asm__ __volatile__("" : "+r"(p)); before if (!p) or if (p == NULL)
+// Inserts: __asm__ __volatile__("" : "+r"(p)); before if (!p), if (p == NULL), if (p != NULL), if (p)
 class PostDerefNullHandler : public MatchFinder::MatchCallback {
   Rewriter &Rewrite;
 public:
@@ -223,13 +223,16 @@ public:
     );
 
     // 2. Matcher for post-dereference null check in enclosing function
+    // Supports: if (!p), if (p == 0), if (p != 0), if (p)
     Matcher.addMatcher(
       functionDecl(forEachDescendant(
         ifStmt(
           hasCondition(
             anyOf(
               unaryOperator(hasOperatorName("!"), hasUnaryOperand(expr().bind("null_ptr"))),
-              binaryOperator(hasOperatorName("=="), hasLHS(expr().bind("null_ptr")), hasRHS(expr().bind("null_rhs")))
+              binaryOperator(hasOperatorName("=="), hasLHS(expr().bind("null_ptr")), hasRHS(expr().bind("null_rhs"))),
+              binaryOperator(hasOperatorName("!="), hasLHS(expr().bind("null_ptr")), hasRHS(expr().bind("null_rhs"))),
+              expr(hasType(pointerType())).bind("null_ptr")
             )
           )
         ).bind("null_if")
