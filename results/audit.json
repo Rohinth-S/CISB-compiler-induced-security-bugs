@@ -1,35 +1,16 @@
-{"pass": "ScrubGuardPass", "function": "authenticate_session", "variable": "secret_key", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
-{"pass": "ScrubGuardPass", "function": "verify_and_wipe_credentials", "variable": "user_pwd", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
-{"pass": "ScrubGuardPass", "function": "extract_entropy_pool", "variable": "hash", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
-{"pass": "ScrubGuardPass", "function": "process_internal_state", "variable": "scratch_pad", "reason": "Dead-at-exit store elimination threat", "action": "Volatile memset + InlineAsm memory barrier inserted"}
-{"source": "tests/cases/05_signed_overflow_check.c", "edits": [{"rule": "ISpec1:SignedOverflow", "desc": "Rewrote signed overflow UB check to __builtin_add_overflow"}]}
-{"source": "tests/cases/06_signed_overflow_gt.c", "edits": [{"rule": "ISpec1:SignedOverflowGT", "desc": "Rewrote signed overflow check (a + c > a) to __builtin_add_overflow"}]}
-{"source": "tests/cases/07_post_deref_null_check.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on d"}]}
-{"source": "tests/cases/08_int_promotion_u8.c", "edits": [{"rule": "ISpec1:IntegerPromotion", "desc": "Added explicit narrowing cast to restore modular semantics"}]}
+{"pass": "ScrubGuardPass", "function": "authenticate", "variable": "secret_key", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
+{"pass": "ScrubGuardPass", "function": "verify_password", "variable": "user_pwd", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
+{"pass": "ScrubGuardPass", "function": "extract_entropy", "variable": "hash", "reason": "Sensitive variable identifier", "action": "Volatile memset + InlineAsm memory barrier inserted"}
+{"pass": "ScrubGuardPass", "function": "process_packet_data", "variable": "scratch_pad", "reason": "Dead-at-exit store elimination threat", "action": "Volatile memset + InlineAsm memory barrier inserted"}
+{"source": "tests/cases/05_signed_overflow_check.c", "edits": [{"rule": "AST:ub-check-guard", "status": "Transformed via Clang LibTooling", "desc": "Rewrote signed overflow UB check to __builtin_add_overflow"}]}
+{"source": "tests/cases/06_signed_overflow_gt.c", "edits": [{"rule": "AST:ub-check-guard", "status": "Transformed via Clang LibTooling", "desc": "Rewrote signed overflow check (a + c > a) to __builtin_add_overflow"}]}
+{"source": "tests/cases/07_post_deref_null_check.c", "edits": [{"rule": "AST:ub-check-guard", "status": "Transformed via Clang LibTooling", "desc": "Inserted compiler barrier before post-dereference null check on d"}]}
+{"source": "tests/cases/08_int_promotion_u8.c", "edits": [{"rule": "AST:ub-check-guard", "status": "Transformed via Clang LibTooling", "desc": "Inserted explicit narrowing cast for promoted integer arithmetic: uint8_t"}]}
 {"pass": "UndefFreezePass", "function": "security_gate", "details": "Undef operand in feeding binary op frozen", "action": "FreezeInst inserted & overflow flags stripped"}
 {"pass": "CFGVerifyPass", "function": "safe_divide", "stage": "Pre-Opt", "event": "Tagged security check branches", "security_checks": 1, "guarded_ops": 1}
 {"pass": "CFGVerifyPass", "function": "safe_divide", "stage": "Post-Opt", "event": "CHECK_VERIFIED", "security_checks": 1, "guarded_ops": 1}
 {"pass": "CFGVerifyPass", "function": "process_virtual_memory", "stage": "Pre-Opt", "event": "Tagged security check branches", "security_checks": 1, "guarded_ops": 0}
 {"pass": "CFGVerifyPass", "function": "process_virtual_memory", "stage": "Post-Opt", "event": "CHECK_VERIFIED", "security_checks": 1, "guarded_ops": 0}
-{"source": "tests/cases/12_null_check_survival.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on n"}]}
+{"source": "tests/cases/12_null_check_survival.c", "edits": [{"rule": "AST:ub-check-guard", "status": "Transformed via Clang LibTooling", "desc": "Inserted compiler barrier before post-dereference null check on n"}]}
 {"pass": "CFGVerifyPass", "function": "process_node", "stage": "Pre-Opt", "event": "Tagged security check branches", "security_checks": 1, "guarded_ops": 0}
 {"pass": "CFGVerifyPass", "function": "process_node", "stage": "Post-Opt", "event": "CHECK_VERIFIED", "security_checks": 1, "guarded_ops": 0}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\01_stack_key_leak.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on secret_key"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\02_password_scrub.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on user_pwd"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\03_crypto_hash_scrub.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on hash"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\04_unnamed_dead_memset.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on scratch_pad"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\05_signed_overflow_check.c", "edits": [{"rule": "ISpec1:SignedOverflow", "desc": "Rewrote signed overflow UB check to __builtin_add_overflow"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\06_signed_overflow_gt.c", "edits": [{"rule": "ISpec1:SignedOverflowGT", "desc": "Rewrote signed overflow check (a + c > a) to __builtin_add_overflow"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\07_post_deref_null_check.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on d"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\08_int_promotion_u8.c", "edits": [{"rule": "ISpec1:IntegerPromotion", "desc": "Added explicit narrowing cast to restore modular semantics"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\12_null_check_survival.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on n"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\benchmarks\\bench_sha256.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on round_key"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\01_stack_key_leak.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on secret_key"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\02_password_scrub.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on user_pwd"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\03_crypto_hash_scrub.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on hash"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\04_unnamed_dead_memset.c", "edits": [{"rule": "OSpec1:ScrubGuard", "desc": "Added memory barrier after zeroing memset on scratch_pad"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\05_signed_overflow_check.c", "edits": [{"rule": "ISpec1:SignedOverflow", "desc": "Rewrote signed overflow UB check to __builtin_add_overflow"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\06_signed_overflow_gt.c", "edits": [{"rule": "ISpec1:SignedOverflowGT", "desc": "Rewrote signed overflow check (a + c > a) to __builtin_add_overflow"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\07_post_deref_null_check.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on d"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\08_int_promotion_u8.c", "edits": [{"rule": "ISpec1:IntegerPromotion", "desc": "Added explicit narrowing cast to restore modular semantics"}]}
-{"source": "C:\\Users\\HP\\cisb-compiler-induced-security-bugs\\tests\\cases\\12_null_check_survival.c", "edits": [{"rule": "ISpec1:PostDerefNull", "desc": "Inserted memory barrier before null check on n"}]}

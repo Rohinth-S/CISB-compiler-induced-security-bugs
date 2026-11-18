@@ -13,3 +13,4 @@ build/
 .cache/
 slide_images*/
 test_trans.pptx
+repo_dump*.txt
