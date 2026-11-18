@@ -20,9 +20,15 @@ static bool isFailureBlock(const BasicBlock &BB) {
       if (Function *Callee = CB->getCalledFunction()) {
         StringRef N = Callee->getName();
         if (N.contains("abort") || N.contains("exit") || N.contains("panic") ||
-            N.contains("assert") || N.contains("ereport") || N.contains("fail")) {
+            N.contains("assert") || N.contains("ereport") || N.contains("fail") ||
+            N.contains("fault") || N.contains("error")) {
           return true;
         }
+      }
+    }
+    if (auto *SI = dyn_cast<StoreInst>(&I)) {
+      if (auto *CI = dyn_cast<ConstantInt>(SI->getValueOperand())) {
+        if (CI->isNegative()) return true; // e.g. store -1 to %retval in unoptimized IR
       }
     }
     if (auto *RI = dyn_cast<ReturnInst>(&I)) {

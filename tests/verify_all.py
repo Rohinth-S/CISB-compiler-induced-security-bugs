@@ -126,6 +126,10 @@ def test_llvm18_plugin_audit():
         lines = f.readlines()
     records = [json.loads(line) for line in lines if line.strip()]
 
+    print(f"  [AUDIT] Total records logged: {len(records)}")
+    for r in records:
+        print(f"          Record: {r}")
+
     has_pre_opt = any(r.get("stage") == "Pre-Opt" and r.get("pass") == "CFGVerifyPass" for r in records)
     has_check_verified = any(r.get("event") == "CHECK_VERIFIED" for r in records)
     has_check_erased = any(r.get("event") == "CHECK_ERASED" for r in records)
