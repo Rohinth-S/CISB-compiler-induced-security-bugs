@@ -12,6 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (activeLink) activeLink.classList.add('active');
     if (activeContent) activeContent.classList.add('active');
+
+    if (targetId === 'tab-benchmarks') {
+      loadOrRunBenchmarks(false);
+    } else if (targetId === 'tab-audit') {
+      loadAuditLog();
+    }
   }
 
   tabLinks.forEach(link => {
@@ -434,4 +440,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial Boot
   loadDemos();
   loadAllCases();
+  loadOrRunBenchmarks(false);
+  loadAuditLog();
 });

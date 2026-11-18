@@ -10,57 +10,57 @@ This repository implements real LLVM 18 passes and Clang AST rewriters adhering 
 
 ```text
 CISB-compiler-induced-security-bugs/
-├── Dockerfile                    # Ubuntu 24.04 + LLVM/Clang 18 toolchain
-├── docker-compose.yml            # Containerized deployment on :8080
-├── CMakeLists.txt                # Builds libCISBGuard.so & ub-check-guard
-├── start-demo.bat                # Health-checked race-free launcher
-├── UPGRADE_PLAN.md               # Complete specification & audit roadmap
-├── PROJECT_PLAN.md               # Course implementation plan & architecture
-├── bin/
-│   ├── cisb-guard-cc             # Unified CLI compiler wrapper
-│   └── cisb_guard_cc.py          # AST rewrite & pass-plugin driver
-├── src/
-│   ├── llvm_plugin/              # LLVM 18 New Pass Manager Plugin (libCISBGuard.so)
-│   │   ├── CISBGuardPlugin.cpp   # Pass registration & opt pipeline hooks
-│   │   ├── ScrubGuardPass.cpp    # OSpec1: DSE secret-scrubbing guard & memory barrier
-│   │   ├── ScrubGuardPass.h
-│   │   ├── UndefFreezePass.cpp   # ISpec1: CISBFuzz undef/poison freeze guard
-│   │   ├── UndefFreezePass.h
-│   │   ├── CFGVerifyPass.cpp     # ISpec2: Pre/Post-Opt XOR post-dominance audit
-│   │   └── CFGVerifyPass.h
-│   └── clang_tool/
-│       └── UBCheckGuard.cpp      # Clang LibTooling AST Rewriter
-├── tests/
-│   ├── cases/                    # 12 Real C & LLVM-IR test cases with exit-code oracles
-│   │   ├── 01_stack_key_leak.c        # OSpec1: Stack key leak via dead-store elimination
-│   │   ├── 02_password_scrub.c        # OSpec1: High-privilege password wiping
-│   │   ├── 03_crypto_hash_scrub.c     # OSpec1: Linux random.c entropy hash scrub
-│   │   ├── 04_unnamed_dead_memset.c   # OSpec1: Anonymous buffer dead zero-store CFG check
-│   │   ├── 05_signed_overflow_check.c # ISpec1: if (x + c < x) upper-bound check deleted by -O3
-│   │   ├── 06_signed_overflow_gt.c    # ISpec1: if (a + 10 > a) lower-bound check folded
-│   │   ├── 07_post_deref_null_check.c # ISpec1: GCC Bug 33629 (*p then if (p))
-│   │   ├── 08_int_promotion_u8.c      # ISpec1: GCC Bug 87060 narrow uint8_t promotion
-│   │   ├── 09_undef_ssce_mutant.ll    # ISpec1: CISBFuzz Fig. 5 EarlyCSE undef erasure
-│   │   ├── 10_div_zero_check_audit.c  # ISpec2: Debian Bug 616180 division-by-zero check audit
-│   │   ├── 11_failure_cfg_check.c     # ISpec2: Linux kernel VM_SHARED/BUG() XOR post-dominance
-│   │   └── 12_null_check_survival.c   # ISpec1/ISpec2: Pre/Post-Opt check survival audit
-│   ├── benchmarks/               # Compute workloads for overhead profiling
-│   │   ├── bench_sha256.c        # SHA-256 block hashing with secret key wiping (300k iterations)
-│   │   ├── bench_quicksort.c     # Quicksort 500k pseudo-random integers
-│   │   └── bench_matmul.c        # 384x384 double-precision matrix multiplication
-│   └── verify_all.py             # Complete automated test runner & assertion suite
-├── backend/
-│   ├── app.py                    # Hardened HTTP API (path traversal defended)
-│   ├── runner.py                 # Live subprocess compiler, objdump & execution engine
-│   └── benchmark.py              # 5-strategy benchmarking & chart generator
-├── results/
-│   ├── benchmark_results.json    # Real measured execution times & overhead
-│   ├── security_vs_overhead.png  # Overhead comparison Pareto chart
-│   └── audit.json                # Structured compiler audit records
-└── web/
-    ├── index.html                # Interactive 6-view presentation dashboard
-    ├── styles.css                # Polished dark mode styling
-    └── app.js                    # Live execution & audit UI logic
+|-- Dockerfile                    # Ubuntu 24.04 + LLVM/Clang 18 toolchain
+|-- docker-compose.yml            # Containerized deployment on :8080
+|-- CMakeLists.txt                # Builds libCISBGuard.so & ub-check-guard
+|-- start-demo.bat                # Health-checked race-free launcher
+|-- UPGRADE_PLAN.md               # Complete specification & audit roadmap
+|-- PROJECT_PLAN.md               # Course implementation plan & architecture
+|-- bin/
+|   |-- cisb-guard-cc             # Unified CLI compiler wrapper
+|   `-- cisb_guard_cc.py          # AST rewrite & pass-plugin driver
+|-- src/
+|   |-- llvm_plugin/              # LLVM 18 New Pass Manager Plugin (libCISBGuard.so)
+|   |   |-- CISBGuardPlugin.cpp   # Pass registration & opt pipeline hooks
+|   |   |-- ScrubGuardPass.cpp    # OSpec1: DSE secret-scrubbing guard & memory barrier
+|   |   |-- ScrubGuardPass.h
+|   |   |-- UndefFreezePass.cpp   # ISpec1: CISBFuzz undef/poison freeze guard
+|   |   |-- UndefFreezePass.h
+|   |   |-- CFGVerifyPass.cpp     # ISpec2: Pre/Post-Opt XOR post-dominance audit
+|   |   `-- CFGVerifyPass.h
+|   `-- clang_tool/
+|       `-- UBCheckGuard.cpp      # Clang LibTooling AST Rewriter
+|-- tests/
+|   |-- cases/                    # 12 Real C & LLVM-IR test cases with exit-code oracles
+|   |   |-- 01_stack_key_leak.c        # OSpec1: Stack key leak via dead-store elimination
+|   |   |-- 02_password_scrub.c        # OSpec1: High-privilege password wiping
+|   |   |-- 03_crypto_hash_scrub.c     # OSpec1: Linux random.c entropy hash scrub
+|   |   |-- 04_unnamed_dead_memset.c   # OSpec1: Anonymous buffer dead zero-store CFG check
+|   |   |-- 05_signed_overflow_check.c # ISpec1: if (x + c < x) upper-bound check deleted by -O3
+|   |   |-- 06_signed_overflow_gt.c    # ISpec1: if (a + 10 > a) lower-bound check folded
+|   |   |-- 07_post_deref_null_check.c # ISpec1: GCC Bug 33629 (*p then if (p))
+|   |   |-- 08_int_promotion_u8.c      # ISpec1: GCC Bug 87060 narrow uint8_t promotion
+|   |   |-- 09_undef_ssce_mutant.ll    # ISpec1: CISBFuzz Fig. 5 EarlyCSE undef erasure
+|   |   |-- 10_div_zero_check_audit.c  # ISpec2: Debian Bug 616180 division-by-zero check audit
+|   |   |-- 11_failure_cfg_check.c     # ISpec2: Linux kernel VM_SHARED/BUG() XOR post-dominance
+|   |   `-- 12_null_check_survival.c   # ISpec1/ISpec2: Pre/Post-Opt check survival audit
+|   |-- benchmarks/               # Compute workloads for overhead profiling
+|   |   |-- bench_sha256.c        # SHA-256 block hashing with secret key wiping (300k iterations)
+|   |   |-- bench_quicksort.c     # Quicksort 500k pseudo-random integers
+|   |   `-- bench_matmul.c        # 384x384 double-precision matrix multiplication
+|   `-- verify_all.py             # Complete automated test runner & assertion suite
+|-- backend/
+|   |-- app.py                    # Hardened HTTP API (path traversal defended)
+|   |-- runner.py                 # Live subprocess compiler, objdump & execution engine
+|   `-- benchmark.py              # 5-strategy benchmarking & chart generator
+|-- results/
+|   |-- benchmark_results.json    # Real measured execution times & overhead
+|   |-- security_vs_overhead.png  # Overhead comparison Pareto chart
+|   `-- audit.json                # Structured compiler audit records
+`-- web/
+    |-- index.html                # Interactive 6-view presentation dashboard
+    |-- styles.css                # Polished dark mode styling
+    `-- app.js                    # Live execution & audit UI logic
 ```
 
 ---
@@ -73,11 +73,11 @@ Empirical verification measurements recorded on **Ubuntu 24.04 LTS (LLVM 18.1.3 
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Clang `-O3` (Baseline)** | **16.7%** (2/12 protected) | `0.00%` (Reference) | 88.19 ms | 33.84 ms | 11.03 ms |
 | **Clang `-O3 -Wall`** | **16.7%** (2/12 protected) | `-0.14%` (&plusmn;0.2% noise) | 88.17 ms | 33.89 ms | 10.97 ms |
-| **Clang `-O3 -fsanitize=undefined`** | **33.3%** (4/12 protected) | `+163.11%` (2.6x slower) | Crashes (stack) | 47.43 ms | 54.48 ms |
+| **Clang `-O3 -fsanitize=undefined`** | **33.3%** (4/12 protected) | `+126.84%` (2.27x slower) | 148.52 ms | 47.43 ms | 54.48 ms |
 | **Clang `-O0`** | **83.3%** (10/12 protected) | `+276.37%` (3.7x slower!) | 199.01 ms | 78.41 ms | 112.47 ms |
 | **CISB-Guard (`-O3`)** | **100.0%** (12/12 protected) | **`-0.21%` (&lt; 1% overhead!)** | **87.64 ms** | **33.90 ms** | **11.01 ms** |
 
-> **Key Viva Finding**: While naive mitigations like `-O0` (+276% overhead) or `UBSan` (+163% overhead) destroy compiler performance and still fail to prevent dead-store elimination (OSpec1) or CFG branch reordering (ISpec2), **CISB-Guard achieves 100% protection across all 12 test cases while maintaining 100% of native `-O3` execution throughput**!
+> **Key Viva Finding**: While naive mitigations like `-O0` (+276% overhead) or `UBSan` (+127% overhead) destroy compiler performance and still fail to prevent dead-store elimination (OSpec1) or CFG branch reordering (ISpec2), **CISB-Guard achieves 100% protection across all 12 test cases while maintaining 100% of native `-O3` execution throughput**!
 
 ---
 

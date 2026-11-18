@@ -11,7 +11,7 @@
     "sha256": {
       "Clang -O3": 88.19,
       "Clang -O3 -Wall": 88.17,
-      "Clang -O3 -fsanitize=undefined": null,
+      "Clang -O3 -fsanitize=undefined": 148.52,
       "Clang -O0": 199.01,
       "CISB-Guard (-O3)": 87.64
     },
@@ -33,7 +33,7 @@
   "overhead_vs_o3": {
     "Clang -O3": "+0.00%",
     "Clang -O3 -Wall": "-0.14%",
-    "Clang -O3 -fsanitize=undefined": "+163.11%",
+    "Clang -O3 -fsanitize=undefined": "+126.84%",
     "Clang -O0": "+276.37%",
     "CISB-Guard (-O3)": "-0.21%"
   },
@@ -54,7 +54,7 @@
   "overhead_pct": {
     "Clang -O3": 0.0,
     "Clang -O3 -Wall": -0.14,
-    "Clang -O3 -fsanitize=undefined": 163.11,
+    "Clang -O3 -fsanitize=undefined": 126.84,
     "Clang -O0": 276.37,
     "CISB-Guard (-O3)": -0.21
   }
