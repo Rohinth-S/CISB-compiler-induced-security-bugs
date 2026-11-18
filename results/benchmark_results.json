@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-18T09:56:34Z",
+  "timestamp": "2026-11-18T10:08:23Z",
   "strategies": [
     "Clang -O3",
     "Clang -O3 -Wall",
@@ -9,46 +9,53 @@
   ],
   "workloads": {
     "sha256": {
-      "Clang -O3": 60.0,
-      "Clang -O3 -Wall": 62.0,
+      "Clang -O3": 88.19,
+      "Clang -O3 -Wall": 88.17,
       "Clang -O3 -fsanitize=undefined": null,
-      "Clang -O0": 159.0,
-      "CISB-Guard (-O3)": 63.0
+      "Clang -O0": 199.01,
+      "CISB-Guard (-O3)": 87.64
     },
     "quicksort": {
-      "Clang -O3": 26.0,
-      "Clang -O3 -Wall": 26.0,
-      "Clang -O3 -fsanitize=undefined": null,
-      "Clang -O0": 55.0,
-      "CISB-Guard (-O3)": 26.0
+      "Clang -O3": 33.84,
+      "Clang -O3 -Wall": 33.89,
+      "Clang -O3 -fsanitize=undefined": 47.43,
+      "Clang -O0": 78.41,
+      "CISB-Guard (-O3)": 33.9
     },
     "matmul": {
-      "Clang -O3": 9.0,
-      "Clang -O3 -Wall": 9.0,
-      "Clang -O3 -fsanitize=undefined": null,
-      "Clang -O0": 103.0,
-      "CISB-Guard (-O3)": 9.0
+      "Clang -O3": 11.03,
+      "Clang -O3 -Wall": 10.97,
+      "Clang -O3 -fsanitize=undefined": 54.48,
+      "Clang -O0": 112.47,
+      "CISB-Guard (-O3)": 11.01
     }
   },
   "overhead_vs_o3": {
     "Clang -O3": "+0.00%",
-    "Clang -O3 -Wall": "+1.10%",
-    "Clang -O3 -fsanitize=undefined": "N/A",
-    "Clang -O0": "+300.32%",
-    "CISB-Guard (-O3)": "+1.64%"
+    "Clang -O3 -Wall": "-0.14%",
+    "Clang -O3 -fsanitize=undefined": "+163.11%",
+    "Clang -O0": "+276.37%",
+    "CISB-Guard (-O3)": "-0.21%"
   },
   "security_protection_rate": {
     "Clang -O3": "16.7% (2/12 protected)",
     "Clang -O3 -Wall": "16.7% (2/12 protected)",
-    "Clang -O3 -fsanitize=undefined": "0.0% (0/12 protected)",
-    "Clang -O0": "50.0% (6/12 protected)",
-    "CISB-Guard (-O3)": "91.7% (11/12 protected)"
+    "Clang -O3 -fsanitize=undefined": "33.3% (4/12 protected)",
+    "Clang -O0": "83.3% (10/12 protected)",
+    "CISB-Guard (-O3)": "100.0% (12/12 protected)"
   },
   "protection_pct": {
-    "Clang -O3": 16.666666666666664,
-    "Clang -O3 -Wall": 16.666666666666664,
-    "Clang -O3 -fsanitize=undefined": 0.0,
-    "Clang -O0": 50.0,
-    "CISB-Guard (-O3)": 91.66666666666666
+    "Clang -O3": 16.7,
+    "Clang -O3 -Wall": 16.7,
+    "Clang -O3 -fsanitize=undefined": 33.3,
+    "Clang -O0": 83.3,
+    "CISB-Guard (-O3)": 100.0
+  },
+  "overhead_pct": {
+    "Clang -O3": 0.0,
+    "Clang -O3 -Wall": -0.14,
+    "Clang -O3 -fsanitize=undefined": 163.11,
+    "Clang -O0": 276.37,
+    "CISB-Guard (-O3)": -0.21
   }
 }

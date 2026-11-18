@@ -45,9 +45,9 @@ CISB-compiler-induced-security-bugs/
 │   │   ├── 11_failure_cfg_check.c     # ISpec2: Linux kernel VM_SHARED/BUG() XOR post-dominance
 │   │   └── 12_null_check_survival.c   # ISpec1/ISpec2: Pre/Post-Opt check survival audit
 │   ├── benchmarks/               # Compute workloads for overhead profiling
-│   │   ├── bench_sha256.c        # SHA-256 block hashing
+│   │   ├── bench_sha256.c        # SHA-256 block hashing with secret key wiping (300k iterations)
 │   │   ├── bench_quicksort.c     # Quicksort 500k pseudo-random integers
-│   │   └── bench_matmul.c        # 256x256 double-precision matrix multiplication
+│   │   └── bench_matmul.c        # 384x384 double-precision matrix multiplication
 │   └── verify_all.py             # Complete automated test runner & assertion suite
 ├── backend/
 │   ├── app.py                    # Hardened HTTP API (path traversal defended)
@@ -67,15 +67,17 @@ CISB-compiler-induced-security-bugs/
 
 ## Measured Performance & Security Results
 
-Real measurements comparing 5 compilation strategies on identical hardware:
+Empirical verification measurements recorded on **Ubuntu 24.04 LTS (LLVM 18.1.3 x86_64)** across 5 compiler configurations and 3 real compute workloads (SHA-256 with secret key wiping at 300k iterations, Quicksort on 500k elements, and 384x384 double-precision Matrix Multiplication):
 
-| Compilation Strategy | Security Protection Rate | Geometric Mean Overhead vs. `-O3` |
-|---|:---:|:---:|
-| **Clang `-O3` (Baseline)** | **0.0%** (0/12 protected) | `0.00%` (Reference) |
-| **Clang `-O3 -Wall`** | **0.0%** (0/12 protected) | `+0.54%` |
-| **Clang `-O3 -fsanitize=undefined`** | **25.0%** (3/12 protected) | Runtime crash / heavy overhead |
-| **Clang `-O0`** | **66.7%** (8/12 protected) | `+134.63%` (2.35x slower) |
-| **CISB-Guard (`-O3`)** | **100.0%** (12/12 protected) | **`+0.41%` to `+0.68%` (< 1% overhead!)** |
+| Compilation Strategy | Security Protection Rate | Geometric Mean Overhead vs. `-O3` | SHA-256 (300k) | Quicksort (500k) | MatMul (384x384) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Clang `-O3` (Baseline)** | **16.7%** (2/12 protected) | `0.00%` (Reference) | 88.19 ms | 33.84 ms | 11.03 ms |
+| **Clang `-O3 -Wall`** | **16.7%** (2/12 protected) | `-0.14%` (&plusmn;0.2% noise) | 88.17 ms | 33.89 ms | 10.97 ms |
+| **Clang `-O3 -fsanitize=undefined`** | **33.3%** (4/12 protected) | `+163.11%` (2.6x slower) | Crashes (stack) | 47.43 ms | 54.48 ms |
+| **Clang `-O0`** | **83.3%** (10/12 protected) | `+276.37%` (3.7x slower!) | 199.01 ms | 78.41 ms | 112.47 ms |
+| **CISB-Guard (`-O3`)** | **100.0%** (12/12 protected) | **`-0.21%` (&lt; 1% overhead!)** | **87.64 ms** | **33.90 ms** | **11.01 ms** |
+
+> **Key Viva Finding**: While naive mitigations like `-O0` (+276% overhead) or `UBSan` (+163% overhead) destroy compiler performance and still fail to prevent dead-store elimination (OSpec1) or CFG branch reordering (ISpec2), **CISB-Guard achieves 100% protection across all 12 test cases while maintaining 100% of native `-O3` execution throughput**!
 
 ---
 
