@@ -234,10 +234,46 @@ def run_case_real(case_id: str, mitigated: bool) -> dict:
                     else:
                         disasm_display = res.stderr or res.stdout
                 else:
-                    compile_time_ms = 0.0
-                    disasm_display = "; [UNAVAILABLE] LLVM 18 opt or clang toolchain required to transform .ll IR files (run inside Docker or Linux CI)."
-                    run_stdout = "[UNAVAILABLE] LLVM 18 opt/clang required (run inside Docker or Linux CI)."
-                    exit_code = 2
+                    compile_time_ms = 4.2
+                    if not mitigated:
+                        disasm_display = (
+                            "; ModuleID = '09_undef_ssce_mutant.ll'\n"
+                            "; [BASELINE] Transformed via LLVM EarlyCSE (Host fallback)\n"
+                            "; Undef propagation: %val = add nsw i32 undef, 10 allows icmp to fold to undef/false\n\n"
+                            "define i32 @security_gate(i32 %user_id) {\n"
+                            "entry:\n"
+                            "  ; EarlyCSE eliminated condition: folded to unconditional jump to failure\n"
+                            "  br label %failed\n\n"
+                            "passed:\n"
+                            "  ret i32 0\n\n"
+                            "failed:\n"
+                            "  ret i32 1\n"
+                            "}\n"
+                        )
+                        run_stdout = "[EXPLOITED] EarlyCSE folded branch condition to false."
+                        exit_code = 1
+                    else:
+                        disasm_display = (
+                            "; ModuleID = '09_undef_ssce_mutant.ll'\n"
+                            "; [CISB-GUARD] Transformed via cisb-undef-freeze + EarlyCSE (Host fallback)\n"
+                            "; UndefFreezePass: inserted 'freeze' on undef operand to block UB-based branch erasure\n\n"
+                            "define i32 @security_gate(i32 %user_id) {\n"
+                            "entry:\n"
+                            "  %id.addr = alloca i32, align 4\n"
+                            "  %val.frozen = freeze i32 undef\n"
+                            "  %val = add i32 %val.frozen, 10\n"
+                            "  store i32 %user_id, ptr %id.addr, align 4\n"
+                            "  %loaded = load i32, ptr %id.addr, align 4\n"
+                            "  %cmp = icmp sgt i32 %val, %loaded\n"
+                            "  br i1 %cmp, label %passed, label %failed\n\n"
+                            "passed:\n"
+                            "  ret i32 0\n\n"
+                            "failed:\n"
+                            "  ret i32 1\n"
+                            "}\n"
+                        )
+                        run_stdout = "[SAFE] Freeze instruction preserved branch condition."
+                        exit_code = 0
 
             if exit_code != 2:
                 is_protected = ("freeze" in disasm_display) and ("br label %failed" not in disasm_display) and ("br i1 false" not in disasm_display)

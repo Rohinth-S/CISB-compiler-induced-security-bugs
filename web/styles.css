@@ -351,6 +351,7 @@ input:checked + .slider:before { transform: translateX(24px); }
 .status-ready { background: #30363d; color: #c9d1d9; }
 .status-vulnerable { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
 .status-protected { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+.status-unavailable { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
 
 .case-description {
   color: var(--text-muted);

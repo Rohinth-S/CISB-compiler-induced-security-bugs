@@ -140,7 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
 
       demoStatusBadge.textContent = data.status;
-      demoStatusBadge.className = 'status-pill ' + (data.status === 'PROTECTED' ? 'status-protected' : 'status-vulnerable');
+      if (data.status === 'PROTECTED') {
+        demoStatusBadge.className = 'status-pill status-protected';
+      } else if (data.status === 'VULNERABLE') {
+        demoStatusBadge.className = 'status-pill status-vulnerable';
+      } else {
+        demoStatusBadge.className = 'status-pill status-unavailable';
+      }
 
       demoSourceTag.textContent = mitigated ? 'Hardened / Rewritten' : 'Original Baseline';
       demoAsmTag.textContent = mitigated ? 'CISB-Guard -O3 Disasm' : 'Baseline -O3 Disasm';
@@ -238,7 +244,13 @@ document.addEventListener('DOMContentLoaded', () => {
       caseDesc.textContent = data.description;
 
       statusBadge.textContent = data.status;
-      statusBadge.className = 'status-pill ' + (data.status === 'PROTECTED' ? 'status-protected' : 'status-vulnerable');
+      if (data.status === 'PROTECTED') {
+        statusBadge.className = 'status-pill status-protected';
+      } else if (data.status === 'VULNERABLE') {
+        statusBadge.className = 'status-pill status-vulnerable';
+      } else {
+        statusBadge.className = 'status-pill status-unavailable';
+      }
 
       sourceCode.textContent = data.source_code;
       disasmCode.textContent = data.disassembly || '// No disassembly available';
@@ -279,13 +291,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const b = item.baseline;
         const m = item.mitigated;
 
-        const baseBadge = b.status === 'VULNERABLE'
-          ? '<span class="status-pill status-vulnerable">VULNERABLE (Exit 1)</span>'
-          : '<span class="status-pill status-protected">PROTECTED (Exit 0)</span>';
+        let baseBadge;
+        if (b.status === 'VULNERABLE') {
+          baseBadge = '<span class="status-pill status-vulnerable">VULNERABLE (Exit 1)</span>';
+        } else if (b.status === 'PROTECTED') {
+          baseBadge = '<span class="status-pill status-protected">PROTECTED (Exit 0)</span>';
+        } else {
+          baseBadge = '<span class="status-pill status-unavailable">UNAVAILABLE</span>';
+        }
 
-        const mitBadge = m.status === 'PROTECTED'
-          ? '<span class="status-pill status-protected">PROTECTED (Exit 0)</span>'
-          : '<span class="status-pill status-vulnerable">VULNERABLE</span>';
+        let mitBadge;
+        if (m.status === 'PROTECTED') {
+          mitBadge = '<span class="status-pill status-protected">PROTECTED (Exit 0)</span>';
+        } else if (m.status === 'VULNERABLE') {
+          mitBadge = '<span class="status-pill status-vulnerable">VULNERABLE (Exit 1)</span>';
+        } else {
+          mitBadge = '<span class="status-pill status-unavailable">UNAVAILABLE</span>';
+        }
 
         tr.innerHTML = `
           <td><code>${item.case_id}</code></td>
